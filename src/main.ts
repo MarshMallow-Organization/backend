@@ -8,9 +8,6 @@ async function bootstrap() {
 
   const port = configService.get<number>('app.port') ?? 3000;
 
-  /** 환경변수 로딩 테스트 */
-  console.log('ports: ' + configService.get<string>('database.host'));
-
   await app.listen(port ?? 3000);
 }
 // eslint-disable-next-line

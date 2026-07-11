@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomConfigModule } from './config/config.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
-const imports = [CustomConfigModule];
+const imports = [CustomConfigModule, PrismaModule];
 
 @Module({
   imports: [...imports],
