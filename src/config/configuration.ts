@@ -1,9 +1,11 @@
 export default () => ({
+  /** 백엔드 서버 설정 */
   app: {
     env: process.env.APP_ENV ?? 'local',
     port: Number(process.env.PORT ?? '3000'),
   },
 
+  /** 데이터베이스 연결 설정 */
   database: {
     host: process.env.DB_HOSTNAME ?? 'localhost',
     port: Number(process.env.DB_PORT ?? '3306'),
