@@ -1,14 +1,14 @@
 services:
   cgate_DB:
     env_file:
-      - .env.local
+      - .env
     container_name: cgate_DB
     image: mysql:8.4
     ports:
       - '3310:3306'
     environment:
-      # - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      # - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_DATABASE}
       - TZ='Asia/Seoul'
     networks:
       - cgate_network
