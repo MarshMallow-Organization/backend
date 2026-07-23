@@ -3,6 +3,8 @@ export default () => ({
   app: {
     env: process.env.APP_ENV ?? 'local',
     port: Number(process.env.PORT ?? '3000'),
+    name: process.env.APP_NAME ?? 'marshmallow-api-server',
+    version: process.env.APP_VERSION ?? '1.0.0',
   },
 
   /** 데이터베이스 연결 설정 */

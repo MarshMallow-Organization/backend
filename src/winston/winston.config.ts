@@ -96,14 +96,17 @@ export const winstonConfigCreator = (configService: ConfigService) => {
     /** local일때만 debug 로그 포함함. */
     level: isLocal ? 'debug' : 'info',
     format: format.combine(...commonFormats),
-    defaultMeta: {
-      service: {
-        name: 'marshmallow-api-server',
-        environment: env,
-        type: 'nestjs',
-        version: '1.0.0',
-      },
-    },
+    /** 로컬 개발에서는 필요가 없으므로 가림 */
+    defaultMeta: !isLocal
+      ? {
+          service: {
+            name: 'marshmallow-api-server',
+            environment: env,
+            type: 'nestjs',
+            version: '1.0.0',
+          },
+        }
+      : {},
 
     transports: [
       new transports.Console({
