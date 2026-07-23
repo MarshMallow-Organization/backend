@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { RequestContext } from '../context/requestContext';
+import { ExecutionContext } from '../context/executionContext';
 import { CustomLogger } from '../logger/customLogger';
 
 /**
@@ -72,7 +72,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
 
       /** 사용자가 문의할 때 이 값으로 로그를 바로 찾을 수 있다. */
-      traceId: RequestContext.getTraceId(),
+      traceId: ExecutionContext.getTraceId(),
     });
   }
 }

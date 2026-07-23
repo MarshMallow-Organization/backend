@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { utilities } from 'nest-winston';
 import { format, LoggerOptions, transports } from 'winston';
-import { RequestContext } from '../common/context/requestContext';
+import { ExecutionContext } from '../context/executionContext';
 
 export const winstonConfigCreator = (configService: ConfigService) => {
   const env = configService.get<string>('app.env') ?? 'local';
@@ -45,7 +45,7 @@ export const winstonConfigCreator = (configService: ConfigService) => {
    * 호출부 값이 유일하게 신뢰할 수 있는 값이기 때문이다.
    */
   const executionContextFormat = format((info) => {
-    const store = RequestContext.get();
+    const store = ExecutionContext.get();
 
     if (!store) {
       return info;

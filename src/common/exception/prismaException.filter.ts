@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Prisma } from 'src/generated/prisma/client';
-import { RequestContext } from '../context/requestContext';
+import { ExecutionContext } from '../context/executionContext';
 import { CustomLogger } from '../logger/customLogger';
 
 /** Prisma 에러를 클라이언트 응답으로 변환하기 위한 매핑. */
@@ -103,7 +103,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       message: mapping.message,
 
       /** 사용자가 문의할 때 이 값으로 로그를 바로 찾을 수 있다. */
-      traceId: RequestContext.getTraceId(),
+      traceId: ExecutionContext.getTraceId(),
     });
   }
 

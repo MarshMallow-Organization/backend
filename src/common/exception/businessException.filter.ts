@@ -5,7 +5,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { RequestContext } from '../context/requestContext';
+import { ExecutionContext } from '../context/executionContext';
 import { CustomLogger, OurLoggingSchema } from '../logger/customLogger';
 import { BusinessException } from './businessException';
 
@@ -55,7 +55,7 @@ export class BusinessExceptionFilter implements ExceptionFilter {
       message: definition.message,
 
       /** 사용자가 문의할 때 이 값으로 로그를 바로 찾을 수 있다. */
-      traceId: RequestContext.getTraceId(),
+      traceId: ExecutionContext.getTraceId(),
     });
   }
 }

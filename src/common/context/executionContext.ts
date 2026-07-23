@@ -30,7 +30,7 @@ const storage = new AsyncLocalStorage<ExecutionStore>();
  * 이벤트를 발생시키기 때문이다. 따라서 미들웨어의 요청 완료 로그는
  * 이 저장소가 아니라 클로저에 담긴 값을 직접 사용해야 한다.
  */
-export const RequestContext = {
+export const ExecutionContext = {
   run<T>(store: ExecutionStore, callback: () => T): T {
     return storage.run(store, callback);
   },
@@ -63,5 +63,5 @@ export function withExecutionContext<T>(
   callback: () => T,
 ): T {
   const traceId = store.traceId ?? randomUUID();
-  return RequestContext.run({ ...store, traceId }, callback);
+  return ExecutionContext.run({ ...store, traceId }, callback);
 }

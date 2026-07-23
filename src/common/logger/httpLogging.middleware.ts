@@ -1,9 +1,7 @@
-// src/winston/middleware/http-logging.middleware.ts
-
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { withExecutionContext } from '../context/requestContext';
+import { withExecutionContext } from '../context/executionContext';
 
 type HttpLogLevel = 'info' | 'warn' | 'error';
 

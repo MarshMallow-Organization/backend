@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
-import { winstonConfigCreator } from './winston/winston.config';
+import { winstonConfigCreator } from './common/logger/winston.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
