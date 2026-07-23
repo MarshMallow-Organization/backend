@@ -18,5 +18,13 @@ async function bootstrap() {
 
   await app.listen(port ?? 3000);
 }
-// eslint-disable-next-line
-bootstrap();
+
+/**
+ * 부팅 실패(NestFactory.create·onModuleInit·app.listen 등)를 방어한다.
+ * 이 구간은 ProcessExceptionHandler가 등록되기 전이라 여기서 잡아야 하고,
+ * winston도 아직 준비 전일 수 있어 console으로 남긴 뒤 종료한다.
+ */
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap application', error);
+  process.exit(1);
+});

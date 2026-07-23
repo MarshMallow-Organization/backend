@@ -3,7 +3,7 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { RequestContext } from '../context/requestContext';
+import { withExecutionContext } from '../context/requestContext';
 
 type HttpLogLevel = 'info' | 'warn' | 'error';
 
@@ -28,6 +28,14 @@ export class HttpLoggingMiddleware implements NestMiddleware {
 
     request.requestId = requestId;
     response.setHeader('x-request-id', requestId);
+
+    /**
+     * HTTP 출처의 귀속 정보. 완료 로그와 실행 컨텍스트가 같은 값을 쓰도록
+     * 여기서 한 번만 만든다. 컨텍스트에 담기면 요청 중 찍히는 모든 로그에
+     * winston 포맷이 자동으로 붙여준다.
+     */
+    const client = { ip: request.ip };
+    const userAgent = { original: request.get('user-agent') };
 
     /**
      * finish는 응답이 정상적으로 전송된 경우에만 발생한다.
@@ -73,13 +81,9 @@ export class HttpLoggingMiddleware implements NestMiddleware {
           path: request.originalUrl.split('?')[0],
         },
 
-        client: {
-          ip: request.ip,
-        },
+        client,
 
-        user_agent: {
-          original: request.get('user-agent'),
-        },
+        user_agent: userAgent,
 
         /**
          * 중단된 요청에서는 이 콜백에 AsyncLocalStorage 컨텍스트가
@@ -93,8 +97,15 @@ export class HttpLoggingMiddleware implements NestMiddleware {
       });
     });
 
-    /** 이후 모든 하위 로직이 동일한 traceId를 공유하도록 컨텍스트를 연다. */
-    RequestContext.run({ traceId: requestId }, () => next());
+    /**
+     * 이후 모든 하위 로직이 동일한 실행 컨텍스트(traceId·client 등)를
+     * 공유하도록 컨텍스트를 연다. traceId는 x-request-id를 전파한 값이라
+     * 헬퍼가 새로 생성하지 않고 그대로 사용한다.
+     */
+    withExecutionContext(
+      { traceId: requestId, client, user_agent: userAgent },
+      () => next(),
+    );
   }
 
   private getRequestId(request: Request): string {
