@@ -47,10 +47,11 @@ async findOrder(orderId: number) {
 ```
 
 이렇게 하면 자동으로:
+
 - 클라이언트에 `{ code, message, traceId }`로 응답 (위에서 정한 status로)
 - 서버 로그에 자동 기록 (4xx는 warn, 5xx는 error)
 
-두 번째 인자 `{ orderId }`는 **조사용 값(labels)**이다. 로그에만 남고 클라이언트엔 안 나간다. 디버깅에 필요한 값을 넣어라.
+(중요) 두 번째 인자 `{ orderId }`는 **조사용 값(labels)**이다. 로그에만 남고 클라이언트엔 안 나간다. 디버깅에 필요한 값을 넣어라.
 
 ## 하지 말 것
 
@@ -70,6 +71,7 @@ throw new BusinessException(OrderErrorCode.ORDER_NOT_FOUND, { orderId });
 ## 예상 못한 에러는?
 
 네가 정의 안 한 에러(`TypeError`, DB 장애 등)는 **아무것도 안 해도 된다.** 그냥 두면:
+
 - Prisma 에러 → `PrismaExceptionFilter`가 처리
 - 그 외 전부 → `AllExceptionsFilter`가 500으로 처리 + error 로깅
 
