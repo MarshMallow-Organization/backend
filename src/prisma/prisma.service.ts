@@ -23,20 +23,4 @@ export class PrismaService extends PrismaClient {
 
     super({ adapter });
   }
-
-  /** DB 커넥션 디버깅 코드 */
-  async onModuleInit(): Promise<void> {
-    await this.$connect();
-
-    // 실제로 DB가 쿼리에 응답하는지 확인
-    await this.$queryRaw`SELECT 1`;
-
-    /** 나중에 제대로 된 로거 구현하면 수정 필요 */
-    console.log('Database connection established');
-  }
-
-  /** 연결을 끊을 때 */
-  async onModuleDestroy(): Promise<void> {
-    await this.$disconnect();
-  }
 }
