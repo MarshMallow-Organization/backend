@@ -44,15 +44,31 @@ export const winstonConfigCreator = (configService: ConfigService) => {
    * 덮어쓰지 않는다. 중단된 요청에서는 컨텍스트가 전파되지 않아
    * 호출부 값이 유일하게 신뢰할 수 있는 값이기 때문이다.
    */
-  const traceContextFormat = format((info) => {
-    if (info.trace) {
+  const executionContextFormat = format((info) => {
+    const store = RequestContext.get();
+
+    if (!store) {
       return info;
     }
 
-    const traceId = RequestContext.getTraceId();
+    /**
+     * 호출부가 직접 넣은 값은 덮어쓰지 않는다. 중단된 요청에서는 컨텍스트가
+     * 전파되지 않아, 미들웨어 완료 로그가 클로저로 직접 넣은 값이 유일하게
+     * 신뢰할 수 있기 때문이다.
+     *
+     * client/user_agent는 HTTP 출처에서만 컨텍스트에 담기므로, cron 등
+     * 다른 출처의 로그에는 자동으로 붙지 않는다.
+     */
+    if (!info.trace && store.traceId) {
+      info.trace = { id: store.traceId };
+    }
 
-    if (traceId) {
-      info.trace = { id: traceId };
+    if (!info.client && store.client) {
+      info.client = store.client;
+    }
+
+    if (!info.user_agent && store.user_agent) {
+      info.user_agent = store.user_agent;
     }
 
     return info;
@@ -62,7 +78,7 @@ export const winstonConfigCreator = (configService: ConfigService) => {
     format.timestamp(),
     format.errors({ stack: true }),
     format.splat(),
-    traceContextFormat(),
+    executionContextFormat(),
   ];
 
   const localFormat = [
