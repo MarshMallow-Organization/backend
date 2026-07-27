@@ -9,6 +9,7 @@ export const winstonConfigCreator = (configService: ConfigService) => {
   const isLocal = env === 'local' ? true : false;
   const appName =
     configService.get<string>('app.name') ?? 'marshmallow-api-server';
+  const appVersion = configService.get<string>('app.version') ?? '1.0.0';
 
   /**
    * winston 기본 필드(level, timestamp, context)를 ECS 스키마로 옮긴다.
@@ -100,10 +101,10 @@ export const winstonConfigCreator = (configService: ConfigService) => {
     defaultMeta: !isLocal
       ? {
           service: {
-            name: 'marshmallow-api-server',
+            name: appName,
             environment: env,
             type: 'nestjs',
-            version: '1.0.0',
+            version: appVersion,
           },
         }
       : {},
