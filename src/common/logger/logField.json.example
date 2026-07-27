@@ -1,0 +1,61 @@
+## 내가 생각하는 로그 형식
+
+{
+  "@timestamp": ,   # 필수 필드
+
+  "service": {      # 필수 필드
+    "name": ,
+    "environment": ,
+    "type": ,
+    "version": ,
+  },
+
+  "message": ,
+
+  "log": {        # 필수 필드
+    "level": ,
+    "logger": ,
+  },
+
+  "http": {
+    "request": {
+      "method": ,
+    },
+
+    "response": {
+      "status_code":
+    },
+  },
+
+  "url": {
+    "path": ,
+  },
+
+  "user": {
+    "id": ,
+    "name": ,
+  },
+
+  "event": {
+    "action": ,
+    "risk_score": ,
+    "duration": ,
+    "outcome": ,
+  },
+
+  "trace": {
+    "id": ,
+  },
+
+  "error": {
+    "type": ,
+    "code": ,
+    "message": ,
+    "stack_trace": ,
+  },
+
+  "client": {
+    "ip": ,
+  }
+
+}
