@@ -12,3 +12,296 @@ generator client {
 datasource db {
   provider = "mysql"
 }
+
+model User {
+  id         Int     @id @default(autoincrement())
+  email      String  @unique
+  password   String?
+  name       String
+  visitCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tossAccount       TossAccount?
+  oauthAccounts     OAuth[]
+  orders            Order[]
+  trades            Trade[]
+  virtualPortfolios VirtualPortfolio[]
+  favoriteStocks    FavoriteStock[]
+  hiddenStocks      HiddenStock[]
+  profilePic        ProfilePic?
+
+  @@map("users")
+}
+
+model TossAccount {
+  id        Int    @id @default(autoincrement())
+  apiKey    String
+  secretKey String
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@map("toss_accounts")
+}
+
+model OAuthProvider {
+  id       Int    @id @default(autoincrement())
+  provider String @unique
+
+  oauthAccounts OAuth[]
+
+  @@map("oauth_provider")
+}
+
+model OAuth {
+  id          Int    @id @default(autoincrement())
+  providerKey String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  providerId Int
+  provider   OAuthProvider @relation(fields: [providerId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([providerId, providerKey])
+  @@map("oauth")
+}
+
+model ProfilePic {
+  id       Int    @id @default(autoincrement())
+  imageUrl String
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("profile_pics")
+}
+
+model Trade {
+  id BigInt @id @default(autoincrement())
+
+  externalTradeId String    @unique
+  tradeType       TradeType
+  corpCode        String
+  corpName        String
+  tradedAt        DateTime
+  price           Decimal   @db.Decimal(15, 2)
+  quantity        Int
+  totalPrice      Decimal   @db.Decimal(20, 2)
+  realizedProfit  Decimal?  @db.Decimal(20, 2)
+  returnRate      Decimal?  @db.Decimal(6, 2)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  currenciesId Int
+  currency     Currency @relation(fields: [currenciesId], references: [id])
+
+  ordersId Int
+  order    Order @relation(fields: [ordersId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, tradedAt])
+  @@index([userId, tradeType, tradedAt])
+  @@map("trades")
+}
+
+model BuyDiary {
+  id Int @id @default(autoincrement())
+
+  buyReason      String
+  goalPrice      Decimal @db.Decimal(15, 2)
+  goalHoldPeriod String  @db.VarChar(50)
+  emotion        Int
+  memo           String
+
+  ordersId Int   @unique
+  order    Order @relation(fields: [ordersId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@map("buy_diaries")
+}
+
+enum SellReasonCode {
+  GOAL_REACHED
+  STOP_LOSS
+  REBALANCING
+  PROFIT_TAKING
+  OTHER
+}
+
+enum GoalEvaluationCode {
+  KEPT_GOAL
+  SOLD_TOO_EARLY
+  SOLD_TOO_LATE
+  EMOTIONAL_SELL
+  AS_PLANNED
+  OTHER
+}
+
+model SellDiary {
+  id Int @id @default(autoincrement())
+
+  sellReasonCode       SellReasonCode @default(GOAL_REACHED)
+  sellReasonDetail     String
+  goalEvaluationCode   GoalEvaluationCode
+  goalEvaluationDetail String
+  emotion              Int
+  retrospectiveMemo    String
+
+  ordersId Int   @unique
+  order    Order @relation(fields: [ordersId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@map("sell_diaries")
+}
+
+model VirtualPortfolio {
+  id        Int    @id @default(autoincrement())
+  name      String
+  sortOrder Int    @default(0)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  stocks VirtualPortfolioStock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, sortOrder])
+  @@map("virtual_portfolios")
+}
+
+model VirtualPortfolioStock {
+  id        Int    @id @default(autoincrement())
+  stockCode String
+
+  virtualPortfolioId Int
+  virtualPortfolio   VirtualPortfolio @relation(fields: [virtualPortfolioId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([virtualPortfolioId, stockCode])
+  @@map("virtual_portfolio_stocks")
+}
+
+model FavoriteStock {
+  id        Int    @id @default(autoincrement())
+  stockCode String
+  stockName String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, stockCode])
+  @@map("favorite_stocks")
+}
+
+model HiddenStock {
+  id          Int      @id @default(autoincrement())
+  stockCode   String
+  stockName   String
+  hiddenUntil DateTime
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, stockCode])
+  @@map("hidden_stocks")
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+  CONDITIONAL
+}
+
+enum TradeType {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  PARTIALLY_FILLED
+  FILLED
+  CANCELED
+  REJECTED
+  EXPIRED
+}
+
+model Order {
+  id Int @id @default(autoincrement())
+
+  orderType OrderType   @default(MARKET)
+  tradeType TradeType
+  quantity  Int
+  price     Decimal?    @db.Decimal(15, 2)
+  status    OrderStatus @default(PENDING)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  currenciesId Int
+  currency     Currency @relation(fields: [currenciesId], references: [id])
+
+  trades         Trade[]
+  buyDiary       BuyDiary?
+  sellDiary      SellDiary?
+  orderCondition OrderCondition?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+model OrderCondition {
+  id           Int      @id @default(autoincrement())
+  triggerPrice Decimal
+  expiredAt    DateTime
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("order_conditions")
+}
+
+model Currency {
+  id       Int    @id @default(autoincrement())
+  currency String
+
+  orders Order[]
+  trades Trade[]
+
+  createdAt DateTime @default(now())
+
+  @@map("currencies")
+}
