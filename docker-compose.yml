@@ -2,7 +2,7 @@ services:
   cgate_DB:
     env_file:
       - .env
-    container_name: cgate_DB
+    container_name: cgateDB #cgate_Db -> cgateDB
     image: mysql:8.4
     ports:
       - '3310:3306'
@@ -17,7 +17,7 @@ services:
       - ./mysql:/var/lib/mysql
 
   adminer:
-    container_name: cgate_adminer
+    container_name: cgateAdminer  #cgate_adminer => cgateAdminer
     networks:
       - cgate_network
     image: adminer
