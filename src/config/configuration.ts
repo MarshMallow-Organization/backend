@@ -10,7 +10,7 @@ export default () => ({
   /** 데이터베이스 연결 설정 */
   database: {
     host: process.env.DB_HOSTNAME ?? 'localhost',
-    port: Number(process.env.DB_PORT ?? '3310'),
+    port: Number(process.env.DB_PORT ?? '3306'),
     username: process.env.DB_USERNAME ?? 'root',
     password: process.env.DB_PASSWORD ?? 'password',
     database: process.env.DB_DATABASE ?? 'cgate',
