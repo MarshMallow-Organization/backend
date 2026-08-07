@@ -1,5 +1,5 @@
 services:
-  cgate_DB:
+  cgateDB:
     env_file:
       - .env
     container_name: cgateDB #cgate_Db -> cgateDB
