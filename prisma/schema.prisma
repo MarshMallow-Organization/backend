@@ -117,12 +117,20 @@ model Trade {
   @@map("trades")
 }
 
+enum GoalHoldPeriod {
+  SHORT_TERM
+  MID_TERM
+  LONG_TERM
+  CUSTOM
+}
+
 model BuyDiary {
   id Int @id @default(autoincrement())
 
   buyReason      String
   goalPrice      Decimal @db.Decimal(15, 2)
-  goalHoldPeriod String  @db.VarChar(50)
+  goalHoldPeriod GoalHoldPeriod?
+  customGoalHoldPeriod String?  @db.VarChar(255)
   emotion        Int
   memo           String
 
@@ -237,7 +245,6 @@ model HiddenStock {
 enum OrderType {
   MARKET
   LIMIT
-  CONDITIONAL
 }
 
 enum TradeType {
@@ -253,11 +260,15 @@ enum OrderStatus {
   REJECTED
   EXPIRED
 }
-
+enum OrderCategory{
+  GENERAL
+  CONDITIONAL
+}
 model Order {
   id Int @id @default(autoincrement())
 
   orderType OrderType   @default(MARKET)
+  orderCategory OrderCategory @default(GENERAL)
   tradeType TradeType
   quantity  Int
   price     Decimal?    @db.Decimal(15, 2)
