@@ -15,7 +15,7 @@ export class DiariesController {
 
   @Get()
   getDiaries(
-    @Headers('x-user-id') userIdHeader: string | undefined,
+    @Headers('x-user-id') userIdHeader: string | undefined,//임시 조회를 위한 x-user-id 나중에는 authorization을 받음
     @Query() query: GetDiariesQueryDto,
   ): Promise<GetDiariesResponseDto> {
     const userId = Number(userIdHeader);

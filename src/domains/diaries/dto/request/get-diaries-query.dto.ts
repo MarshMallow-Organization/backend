@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -37,6 +37,9 @@ export class GetDiariesQueryDto {
 
   @IsOptional()
   @IsArray()
+  @Transform(({ value }) =>
+    Array.isArray(value) ? value : [value],
+  )//하나의 company만 요청을 한 경우 배열로 transform
   @IsString({ each: true })
   companies?: string[];
 
