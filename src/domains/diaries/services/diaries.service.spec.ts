@@ -1,53 +1,34 @@
 import { BusinessException } from '../../../common/exception/businessException';
+import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
+import {
+  DiariesRepository,
+  DiaryListItem,
+  DiaryPageCriteria,
+} from './diaries.repository';
 import { DiariesService } from './diaries.service';
 
-type DiaryListItem = {
-  diaryId: number;
-  orderId: number;
-  type: 'BUY' | 'SELL';
-  date: string;
-  corpCode: string;
-  corpName: string;
-  avgPrice: number | null;
-  quantity: number;
-  memo: string;
-  createdAt: string;
-};
+const expectBusinessException = async (
+  promise: Promise<unknown>,
+  code: string,
+): Promise<void> => {
+  try {
+    await promise;
+    throw new Error(`Expected BusinessException with code ${code}`);
+  } catch (error: unknown) {
+    expect(error).toBeInstanceOf(BusinessException);
 
-type DiaryListQuery = {
-  page?: number;
-  size?: number;
-  dates?: string[];
-  startDate?: string;
-  endDate?: string;
-  companies?: string[];
-};
+    if (!(error instanceof BusinessException)) {
+      throw error;
+    }
 
-type DiaryPageCriteria = {
-  page: number;
-  size: number;
-  dates?: string[];
-  startDate?: string;
-  endDate?: string;
-  companies?: string[];
-  orderBy: readonly [{ date: 'desc' }, { diaryId: 'desc' }];
-};
-
-type DiaryPageResult = {
-  items: DiaryListItem[];
-  totalElements: number;
-};
-
-type DiariesRepositoryMock = {
-  findPage: jest.Mock<
-    Promise<DiaryPageResult>,
-    [userId: number, criteria: DiaryPageCriteria]
-  >;
+    expect(error.definition.code).toBe(code);
+  }
 };
 
 describe('DiariesService', () => {
   let service: DiariesService;
-  let diariesRepository: DiariesRepositoryMock;
+  let diariesRepository: jest.Mocked<DiariesRepository>;
+  let findPage: jest.MockedFunction<DiariesRepository['findPage']>;
 
   const userId = 7;
   const diary: DiaryListItem = {
@@ -66,23 +47,24 @@ describe('DiariesService', () => {
   };
 
   beforeEach(() => {
+    findPage = jest.fn<DiariesRepository['findPage']>();
     diariesRepository = {
-      findPage: jest.fn(),
+      findPage,
     };
 
-    service = new DiariesService(diariesRepository as never);
+    service = new DiariesService(diariesRepository);
   });
 
   describe('getDiaries', () => {
     it('조회 조건이 없으면 첫 페이지를 기본 크기로 조회한다', async () => {
-      diariesRepository.findPage.mockResolvedValue({
+      findPage.mockResolvedValue({
         items: [diary],
         totalElements: 1,
       });
 
       const result = await service.getDiaries(userId, {});
 
-      expect(diariesRepository.findPage).toHaveBeenCalledWith(userId, {
+      expect(findPage).toHaveBeenCalledWith(userId, {
         page: 0,
         size: 10,
         orderBy: [{ date: 'desc' }, { diaryId: 'desc' }],
@@ -98,7 +80,7 @@ describe('DiariesService', () => {
     });
 
     it('요청한 페이지와 크기로 페이지네이션 정보를 계산한다', async () => {
-      diariesRepository.findPage.mockResolvedValue({
+      findPage.mockResolvedValue({
         items: [diary],
         totalElements: 45,
       });
@@ -119,7 +101,7 @@ describe('DiariesService', () => {
 
     it.each<{
       name: string;
-      query: DiaryListQuery;
+      query: GetDiariesQueryDto;
       expected: Partial<DiaryPageCriteria>;
     }>([
       {
@@ -138,21 +120,21 @@ describe('DiariesService', () => {
         expected: { companies: ['000660', '005930'] },
       },
     ])('$name 조건을 repository에 전달한다', async ({ query, expected }) => {
-      diariesRepository.findPage.mockResolvedValue({
+      findPage.mockResolvedValue({
         items: [],
         totalElements: 0,
       });
 
       await service.getDiaries(userId, query);
 
-      expect(diariesRepository.findPage).toHaveBeenCalledWith(
+      expect(findPage).toHaveBeenCalledWith(
         userId,
         expect.objectContaining(expected),
       );
     });
 
     it('조회 결과가 없으면 빈 페이지를 반환한다', async () => {
-      diariesRepository.findPage.mockResolvedValue({
+      findPage.mockResolvedValue({
         items: [],
         totalElements: 0,
       });
@@ -169,44 +151,49 @@ describe('DiariesService', () => {
       });
     });
 
-    it.each([
-      [{ startDate: '2026-08-01' }, '시작일만 전달'],
-      [{ endDate: '2026-08-31' }, '종료일만 전달'],
-      [
-        {
+    it.each<{ query: GetDiariesQueryDto; description: string }>([
+      {
+        query: { startDate: '2026-08-01' },
+        description: '시작일만 전달',
+      },
+      {
+        query: { endDate: '2026-08-31' },
+        description: '종료일만 전달',
+      },
+      {
+        query: {
           dates: ['2026-08-01'],
           startDate: '2026-08-01',
           endDate: '2026-08-31',
         },
-        '특정 날짜와 기간을 함께 전달',
-      ],
+        description: '특정 날짜와 기간을 함께 전달',
+      },
     ])(
-      '%s: 잘못된 기간 조건이면 INVALID_DATE_RANGE를 던진다',
-      async (query) => {
-        await expect(
-          service.getDiaries(userId, query as DiaryListQuery),
-        ).rejects.toMatchObject<Partial<BusinessException>>({
-          definition: expect.objectContaining({ code: 'INVALID_DATE_RANGE' }),
-        });
-        expect(diariesRepository.findPage).not.toHaveBeenCalled();
+      '$description: 잘못된 기간 조건이면 INVALID_DATE_RANGE를 던진다',
+      async ({ query }) => {
+        await expectBusinessException(
+          service.getDiaries(userId, query),
+          'INVALID_DATE_RANGE',
+        );
+        expect(findPage).not.toHaveBeenCalled();
       },
     );
 
-    it.each([
-      [{ page: -1 }, '음수 페이지'],
-      [{ size: 0 }, '0인 페이지 크기'],
-      [{ size: 21 }, '최대 크기를 초과한 페이지 크기'],
+    it.each<{ query: GetDiariesQueryDto; description: string }>([
+      { query: { page: -1 }, description: '음수 페이지' },
+      { query: { size: 0 }, description: '0인 페이지 크기' },
+      {
+        query: { size: 21 },
+        description: '최대 크기를 초과한 페이지 크기',
+      },
     ])(
-      '%s: 쿼리 범위가 잘못되면 INVALID_QUERY_PARAMETER를 던진다',
-      async (query) => {
-        await expect(
-          service.getDiaries(userId, query as DiaryListQuery),
-        ).rejects.toMatchObject<Partial<BusinessException>>({
-          definition: expect.objectContaining({
-            code: 'INVALID_QUERY_PARAMETER',
-          }),
-        });
-        expect(diariesRepository.findPage).not.toHaveBeenCalled();
+      '$description: 쿼리 범위가 잘못되면 INVALID_QUERY_PARAMETER를 던진다',
+      async ({ query }) => {
+        await expectBusinessException(
+          service.getDiaries(userId, query),
+          'INVALID_QUERY_PARAMETER',
+        );
+        expect(findPage).not.toHaveBeenCalled();
       },
     );
   });

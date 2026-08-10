@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
@@ -12,6 +13,15 @@ async function bootstrap() {
   /** 기본 로거 윈스턴으로 교체 */
   app.useLogger(
     WinstonModule.createLogger(winstonConfigCreator(configService)),
+  );
+
+  /** 요청 DTO의 변환과 유효성 검사를 전역으로 적용한다. */
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
   );
 
   const port = configService.get<number>('app.port') ?? 3000;
