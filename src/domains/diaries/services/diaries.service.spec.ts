@@ -4,6 +4,7 @@ import {
   DiariesRepository,
   DiaryListItem,
   DiaryPageCriteria,
+  DiaryPageResult,
 } from './diaries.repository';
 import { DiariesService } from './diaries.service';
 
@@ -47,11 +48,20 @@ describe('DiariesService', () => {
   };
 
   beforeEach(() => {
-    // findPage = jest.fn<DiariesRepository['findPage']>();
-    findPage = jest.fn<
-      ReturnType<DiariesRepository['findPage']>,
-      Parameters<DiariesRepository['findPage']>
-    >();
+    findPage = jest.fn(
+      (
+        _userId: number,
+        _criteria: DiaryPageCriteria,
+      ): Promise<DiaryPageResult> => {
+        void _userId;
+        void _criteria;
+
+        return Promise.resolve({
+          items: [],
+          totalElements: 0,
+        });
+      },
+    );
     diariesRepository = {
       findPage,
     };
