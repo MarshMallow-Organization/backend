@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
@@ -15,6 +15,11 @@ import { CreatePortfolioDto } from './dto/createPortfolio.dto';
 @UseGuards(StubAuthGuard)
 export class AssetsController {
   constructor(private readonly assetsService: AssetsService) {}
+
+  @Get('portfolios')
+  findPortfolios(@CurrentUser() user: AuthUser) {
+    return this.assetsService.findPortfolios(user.id);
+  }
 
   @Post('portfolios')
   createPortfolio(

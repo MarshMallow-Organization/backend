@@ -19,6 +19,31 @@ export class AssetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * 사용자의 가상계좌 목록을 조회한다.
+   *
+   * 명세대로 기본 정보만 내려주고 holdings는 포함하지 않는다.
+   * 보유 종목이 필요하면 개별 조회 API를 쓴다.
+   */
+  async findPortfolios(userId: number) {
+    const portfolios = await this.prisma.virtualPortfolio.findMany({
+      where: { userId },
+
+      /** 사용자가 정한 순서. 같으면 만든 순서(id)로 안정적으로 정렬한다. */
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+
+      select: {
+        id: true,
+        name: true,
+        sortOrder: true,
+        createdAt: true,
+      },
+    });
+
+    /** 프론트가 '추가' 버튼을 막을 수 있도록 상한을 함께 내려준다. */
+    return { portfolios, maxCount: MAX_PORTFOLIO_COUNT };
+  }
+
+  /**
    * 가상계좌를 생성한다.
    *
    * 개수 제한과 이름 중복을 확인한 뒤 sortOrder를 최대값 + 1로 매긴다.

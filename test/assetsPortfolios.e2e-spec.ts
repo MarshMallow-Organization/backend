@@ -27,8 +27,16 @@ interface ErrorBody {
   traceId?: string;
 }
 
+interface PortfolioListData {
+  portfolios: PortfolioData[];
+  maxCount: number;
+}
+
 const dataOf = (response: { body: unknown }): PortfolioData =>
   (response.body as SuccessBody).data;
+
+const listOf = (response: { body: unknown }): PortfolioListData =>
+  (response.body as { data: PortfolioListData }).data;
 
 const errorOf = (response: { body: unknown }): ErrorBody =>
   response.body as ErrorBody;
@@ -129,6 +137,108 @@ describe('POST /assets/portfolios (가상계좌 생성)', () => {
       .post('/assets/portfolios')
       .set('x-stub-user-id', 'not-a-number')
       .send({ name: '안전형 투자' })
+      .expect(401);
+  });
+});
+
+describe('GET /assets/portfolios (가상계좌 목록 조회)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    prisma = app.get(PrismaService);
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const get = (userId = TEST_USER_ID) =>
+    request(app.getHttpServer() as App)
+      .get('/assets/portfolios')
+      .set(...asUser(userId));
+
+  const seed = (userId: number, name: string, sortOrder: number) =>
+    prisma.virtualPortfolio.create({ data: { userId, name, sortOrder } });
+
+  it('가상계좌가 없으면 빈 배열을 반환한다', async () => {
+    const response = await get().expect(200);
+
+    expect(listOf(response).portfolios).toEqual([]);
+  });
+
+  it('생성 가능한 최대 개수를 함께 내려준다', async () => {
+    const response = await get().expect(200);
+
+    expect(listOf(response).maxCount).toBe(4);
+  });
+
+  it('가상계좌 기본 정보를 반환한다', async () => {
+    await seed(TEST_USER_ID, '안전형 투자', 1);
+
+    const response = await get().expect(200);
+
+    expect(listOf(response).portfolios).toHaveLength(1);
+    expect(listOf(response).portfolios[0]).toMatchObject({
+      name: '안전형 투자',
+      sortOrder: 1,
+    });
+  });
+
+  /** 명세: holdings는 목록 조회에 포함하지 않는다. */
+  it('holdings는 포함하지 않는다', async () => {
+    await seed(TEST_USER_ID, '안전형 투자', 1);
+
+    const response = await get().expect(200);
+
+    expect(listOf(response).portfolios[0]).not.toHaveProperty('holdings');
+  });
+
+  /** 명세: sortOrder 오름차순, 같으면 id 오름차순. */
+  it('sortOrder 오름차순으로 정렬한다', async () => {
+    await seed(TEST_USER_ID, '세번째', 3);
+    await seed(TEST_USER_ID, '첫번째', 1);
+    await seed(TEST_USER_ID, '두번째', 2);
+
+    const response = await get().expect(200);
+
+    expect(listOf(response).portfolios.map((p) => p.name)).toEqual([
+      '첫번째',
+      '두번째',
+      '세번째',
+    ]);
+  });
+
+  it('sortOrder가 같으면 id 오름차순으로 정렬한다', async () => {
+    const first = await seed(TEST_USER_ID, 'A', 1);
+    const second = await seed(TEST_USER_ID, 'B', 1);
+
+    const response = await get().expect(200);
+
+    expect(listOf(response).portfolios.map((p) => p.id)).toEqual([
+      first.id,
+      second.id,
+    ]);
+  });
+
+  it('다른 사용자의 가상계좌는 조회되지 않는다', async () => {
+    await seed(OTHER_USER_ID, '남의 계좌', 1);
+    await seed(TEST_USER_ID, '내 계좌', 1);
+
+    const response = await get().expect(200);
+
+    expect(listOf(response).portfolios.map((p) => p.name)).toEqual(['내 계좌']);
+  });
+
+  it('스텁 인증 헤더가 잘못되면 401을 반환한다', async () => {
+    await request(app.getHttpServer() as App)
+      .get('/assets/portfolios')
+      .set('x-stub-user-id', 'not-a-number')
       .expect(401);
   });
 });
