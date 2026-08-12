@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { BusinessException } from '../../../common/exception/businessException';
 import { DiariesErrorCode } from '../diaries.error';
-import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
+import {
+  DIARY_MAX_SIZE,
+  GetDiariesQueryDto,
+} from '../dto/request/get-diaries-query.dto';
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
 import { DiariesRepository, DiaryPageCriteria } from './diaries.repository';
 
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 10;
-const MAX_SIZE = 20;
 
 @Injectable()
 export class DiariesService {
@@ -55,7 +57,7 @@ export class DiariesService {
       page < 0 ||
       !Number.isInteger(size) ||
       size < 1 ||
-      size > MAX_SIZE
+      size > DIARY_MAX_SIZE
     ) {
       throw new BusinessException(DiariesErrorCode.INVALID_QUERY_PARAMETER, {
         page,
