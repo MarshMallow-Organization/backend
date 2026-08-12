@@ -36,7 +36,7 @@ export class DiariesService {
     const { items, totalElements } = await this.diariesRepository.findPage(
       userId,
       criteria,
-    );//DB 조회를 한다고 한다
+    ); //DB 조회를 한다고 한다
     const totalPages = Math.ceil(totalElements / size);
 
     return {

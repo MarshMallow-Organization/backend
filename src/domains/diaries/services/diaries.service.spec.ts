@@ -48,7 +48,10 @@ describe('DiariesService', () => {
 
   beforeEach(() => {
     // findPage = jest.fn<DiariesRepository['findPage']>();
-    findPage = jest.fn< ReturnType<DiariesRepository['findPage']>, Parameters<DiariesRepository['findPage']>>();
+    findPage = jest.fn<
+      ReturnType<DiariesRepository['findPage']>,
+      Parameters<DiariesRepository['findPage']>
+    >();
     diariesRepository = {
       findPage,
     };

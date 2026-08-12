@@ -1,4 +1,4 @@
-import { DiaryPreviewDto } from './diary-preview.dto'
+import { DiaryPreviewDto } from './diary-preview.dto';
 
 export class GetDiariesResponseDto {
   items: DiaryPreviewDto[];
