@@ -4,6 +4,8 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
 import { winstonConfigCreator } from './common/logger/winston.config';
+import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +15,19 @@ async function bootstrap() {
   /** 기본 로거 윈스턴으로 교체 */
   app.useLogger(
     WinstonModule.createLogger(winstonConfigCreator(configService)),
+  );
+  app.use(cookieParser());
+
+  app.enableCors({
+    origin: configService.get<string>('cors.origin'),
+    credentials: true,
+  });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
   );
 
   /** 요청 DTO의 변환과 유효성 검사를 전역으로 적용한다. */

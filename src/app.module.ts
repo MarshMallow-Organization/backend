@@ -10,6 +10,7 @@ import { CustomConfigModule } from './config/config.module';
 import { HttpLoggingMiddleware } from './common/logger/httpLogging.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { ResponseInterceptor } from './global/interceptor/response.interceptor';
+import { AuthModule } from './domains/auth/auth.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -17,6 +18,8 @@ const imports = [
   CustomConfigModule,
   /** Prisma ORM 모듈 */
   PrismaModule,
+  /**Auth 인증 모듈 */
+  AuthModule,
 ];
 
 @Module({

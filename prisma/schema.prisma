@@ -4,8 +4,8 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -27,12 +27,28 @@ model User {
   oauthAccounts     OAuth[]
   orders            Order[]
   trades            Trade[]
+  diaries           Diary[]
   virtualPortfolios VirtualPortfolio[]
   favoriteStocks    FavoriteStock[]
   hiddenStocks      HiddenStock[]
   profilePic        ProfilePic?
+  loginSessions     LoginSession[]
 
   @@map("users")
+}
+
+model LoginSession {
+  id               Int      @id @default(autoincrement())
+  refreshTokenHash String
+  expiresAt        DateTime
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("login_sessions")
 }
 
 model TossAccount {
@@ -117,20 +133,51 @@ model Trade {
   @@map("trades")
 }
 
+enum GoalHoldPeriod {
+  SHORT_TERM
+  MID_TERM
+  LONG_TERM
+  CUSTOM
+}
+
+model Diary {
+  id               Int       @id @default(autoincrement())
+  type             TradeType
+  date             DateTime  @db.Date
+  corpCode         String
+  corpName         String
+  perAtTrade       Decimal?  @db.Decimal(15, 2)
+  pbrAtTrade       Decimal?  @db.Decimal(15, 2)
+  marketCapAtTrade Decimal?  @db.Decimal(20, 2)
+  candelChartAtUrl String?   @db.VarChar(2048)
+  deletedAt        DateTime?
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
+
+  buyDiary  BuyDiary?
+  sellDiary SellDiary?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, deletedAt, date])
+  @@map("diaries")
+}
+
 model BuyDiary {
-  id Int @id @default(autoincrement())
+  diaryId Int   @id
+  diary   Diary @relation(fields: [diaryId], references: [id])
 
-  buyReason      String
-  goalPrice      Decimal @db.Decimal(15, 2)
-  goalHoldPeriod String  @db.VarChar(50)
-  emotion        Int
-  memo           String
-
-  ordersId Int   @unique
-  order    Order @relation(fields: [ordersId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
+  buyReason            String
+  goalPrice            Decimal         @db.Decimal(15, 2)
+  goalHoldPeriod       GoalHoldPeriod?
+  customGoalHoldPeriod String?         @db.VarChar(255)
+  emotion              Int
+  memo                 String
 
   @@map("buy_diaries")
 }
@@ -153,20 +200,15 @@ enum GoalEvaluationCode {
 }
 
 model SellDiary {
-  id Int @id @default(autoincrement())
+  diaryId Int   @id
+  diary   Diary @relation(fields: [diaryId], references: [id])
 
-  sellReasonCode       SellReasonCode @default(GOAL_REACHED)
+  sellReasonCode       SellReasonCode     @default(GOAL_REACHED)
   sellReasonDetail     String
   goalEvaluationCode   GoalEvaluationCode
   goalEvaluationDetail String
   emotion              Int
-  retrospectiveMemo    String
-
-  ordersId Int   @unique
-  order    Order @relation(fields: [ordersId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
+  memo                 String
 
   @@map("sell_diaries")
 }
@@ -237,7 +279,6 @@ model HiddenStock {
 enum OrderType {
   MARKET
   LIMIT
-  CONDITIONAL
 }
 
 enum TradeType {
@@ -254,14 +295,20 @@ enum OrderStatus {
   EXPIRED
 }
 
+enum OrderCategory {
+  GENERAL
+  CONDITIONAL
+}
+
 model Order {
   id Int @id @default(autoincrement())
 
-  orderType OrderType   @default(MARKET)
-  tradeType TradeType
-  quantity  Int
-  price     Decimal?    @db.Decimal(15, 2)
-  status    OrderStatus @default(PENDING)
+  orderType     OrderType     @default(MARKET)
+  orderCategory OrderCategory @default(GENERAL)
+  tradeType     TradeType
+  quantity      Int
+  price         Decimal?      @db.Decimal(15, 2)
+  status        OrderStatus   @default(PENDING)
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
@@ -270,8 +317,7 @@ model Order {
   currency     Currency @relation(fields: [currenciesId], references: [id])
 
   trades         Trade[]
-  buyDiary       BuyDiary?
-  sellDiary      SellDiary?
+  diary          Diary?
   orderCondition OrderCondition?
 
   createdAt DateTime @default(now())
