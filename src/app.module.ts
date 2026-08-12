@@ -1,7 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AllExceptionsFilter } from './common/exception/allException.filter';
 import { BusinessExceptionFilter } from './common/exception/businessException.filter';
 import { PrismaExceptionFilter } from './common/exception/prismaException.filter';
@@ -10,6 +10,7 @@ import { CustomConfigModule } from './config/config.module';
 import { HttpLoggingMiddleware } from './common/logger/httpLogging.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './domains/auth/auth.module';
+import { ResponseInterceptor } from './global/interceptor/response.interceptor';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -36,6 +37,8 @@ const imports = [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_FILTER, useClass: PrismaExceptionFilter },
     { provide: APP_FILTER, useClass: BusinessExceptionFilter },
+    /** 모든 정상 응답을 { data: T } 형식으로 통일한다. */
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
   ],
 })
 export class AppModule implements NestModule {
