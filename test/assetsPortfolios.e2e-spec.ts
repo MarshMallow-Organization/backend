@@ -9,6 +9,30 @@ import {
   TEST_USER_ID,
 } from './e2eApp';
 
+/** 응답 봉투. 이슈 #24가 정한 형식이다. */
+interface PortfolioData {
+  id: number;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+interface SuccessBody {
+  data: PortfolioData;
+}
+
+interface ErrorBody {
+  code: string;
+  message: string;
+  traceId?: string;
+}
+
+const dataOf = (response: { body: unknown }): PortfolioData =>
+  (response.body as SuccessBody).data;
+
+const errorOf = (response: { body: unknown }): ErrorBody =>
+  response.body as ErrorBody;
+
 /** 인증 스텁이 읽는 헤더. 실제 JWT가 붙으면 Authorization으로 바뀐다. */
 const asUser = (userId: number) => ['x-stub-user-id', String(userId)] as const;
 
@@ -38,19 +62,19 @@ describe('POST /assets/portfolios (가상계좌 생성)', () => {
   it('가상계좌를 생성하고 201로 응답한다', async () => {
     const response = await post({ name: '안전형 투자' }).expect(201);
 
-    expect(response.body.data).toMatchObject({
+    expect(dataOf(response)).toMatchObject({
       name: '안전형 투자',
       sortOrder: 1,
     });
-    expect(response.body.data.id).toEqual(expect.any(Number));
-    expect(response.body.data.createdAt).toEqual(expect.any(String));
+    expect(dataOf(response).id).toEqual(expect.any(Number));
+    expect(dataOf(response).createdAt).toEqual(expect.any(String));
   });
 
   it('생성한 가상계좌가 요청한 사용자 소유로 저장된다', async () => {
     const response = await post({ name: '안전형 투자' }).expect(201);
 
     const saved = await prisma.virtualPortfolio.findUnique({
-      where: { id: response.body.data.id },
+      where: { id: dataOf(response).id },
     });
 
     expect(saved?.userId).toBe(TEST_USER_ID);
@@ -61,13 +85,13 @@ describe('POST /assets/portfolios (가상계좌 생성)', () => {
     await post({ name: '첫번째' }).expect(201);
     const second = await post({ name: '두번째' }).expect(201);
 
-    expect(second.body.data.sortOrder).toBe(2);
+    expect(dataOf(second).sortOrder).toBe(2);
   });
 
   it('이름이 없으면 400을 반환한다', async () => {
     const response = await post({}).expect(400);
 
-    expect(response.body.code).toBe('BAD_REQUEST');
+    expect(errorOf(response).code).toBe('BAD_REQUEST');
   });
 
   it('이름이 빈 문자열이면 400을 반환한다', async () => {
@@ -80,11 +104,11 @@ describe('POST /assets/portfolios (가상계좌 생성)', () => {
 
     const response = await post({ name: '안전형 투자' }).expect(409);
 
-    expect(response.body.code).toBe('PORTFOLIO_NAME_DUPLICATED');
+    expect(errorOf(response).code).toBe('PORTFOLIO_NAME_DUPLICATED');
   });
 
   it('다른 사용자는 같은 이름으로 만들 수 있다', async () => {
-    await post({ name: '안전형 투자', }, TEST_USER_ID).expect(201);
+    await post({ name: '안전형 투자' }, TEST_USER_ID).expect(201);
 
     await post({ name: '안전형 투자' }, OTHER_USER_ID).expect(201);
   });
@@ -97,7 +121,7 @@ describe('POST /assets/portfolios (가상계좌 생성)', () => {
 
     const response = await post({ name: '5번' }).expect(409);
 
-    expect(response.body.code).toBe('PORTFOLIO_LIMIT_EXCEEDED');
+    expect(errorOf(response).code).toBe('PORTFOLIO_LIMIT_EXCEEDED');
   });
 
   it('스텁 인증 헤더가 잘못되면 401을 반환한다', async () => {

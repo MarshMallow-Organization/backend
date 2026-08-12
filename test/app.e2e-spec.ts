@@ -16,11 +16,12 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
+  /** 응답은 전역 ResponseInterceptor가 { data } 로 감싼다(이슈 #24). */
   it('/ (GET)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect({ data: 'Hello World!' });
   });
 
   afterEach(async () => {

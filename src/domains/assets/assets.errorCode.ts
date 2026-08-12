@@ -38,6 +38,13 @@ export const AssetsErrorCode = defineErrorCodes({
     message: '이미 가상계좌에 담긴 종목입니다.',
   },
 
+  /** 명세: 사용자당 가상계좌는 최대 4개까지. */
+  PORTFOLIO_LIMIT_EXCEEDED: {
+    code: 'PORTFOLIO_LIMIT_EXCEEDED',
+    status: HttpStatus.CONFLICT,
+    message: '가상계좌는 최대 4개까지 생성할 수 있습니다.',
+  },
+
   PORTFOLIO_STOCK_NOT_FOUND: {
     code: 'PORTFOLIO_STOCK_NOT_FOUND',
     status: HttpStatus.NOT_FOUND,

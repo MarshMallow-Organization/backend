@@ -7,8 +7,7 @@
  * dotenv는 이미 있는 process.env 값을 덮어쓰지 않으므로 여기서 정한 값이 이긴다.
  */
 process.env.DB_DATABASE = 'cgate_test';
-process.env.PRISMA_URL =
-  'mysql://root:password@localhost:3310/cgate_test';
+process.env.PRISMA_URL = 'mysql://root:password@localhost:3310/cgate_test';
 
 /** StubAuthGuard는 APP_ENV가 local일 때만 동작한다(그 외에는 401). */
 process.env.APP_ENV = 'local';
