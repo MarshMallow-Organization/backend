@@ -1,4 +1,4 @@
-name: Lint Check
+name: CI Check
 
 on:
   # 어떤 브랜치든 push가 발생하면 실행
@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Linter
+  lint-and-build:
+    name: Lint and Build
     runs-on: ubuntu-latest
 
     steps:
@@ -35,3 +35,7 @@ jobs:
       # ESLint 검사
       - name: Run lint
         run: yarn lint
+
+      # lint 통과한 뒤에만 타입스크립트 컴파일 확인
+      - name: Build
+        run: yarn build
