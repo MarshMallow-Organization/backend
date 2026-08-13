@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
 import { winstonConfigCreator } from './common/logger/winston.config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
@@ -39,6 +40,18 @@ async function bootstrap() {
   );
 
   const port = configService.get<number>('app.port') ?? 3000;
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('MarshMallow API')
+    .setDescription('MarshMallow 백엔드 API 문서')
+    .setVersion('1.0.0')
+    .addBearerAuth()
+    .build();
+
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+
+  SwaggerModule.setup('swagger', app, swaggerDocument, {
+    customSiteTitle: 'MarshMallow API Docs',
+  });
 
   await app.listen(port ?? 3000);
 }
