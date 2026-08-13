@@ -1,4 +1,4 @@
-name: Lint Check
+name: CI Check
 
 on:
   # 어떤 브랜치든 push가 발생하면 실행
@@ -35,3 +35,28 @@ jobs:
       # ESLint 검사
       - name: Run lint
         run: yarn lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Runner에 현재 저장소 코드를 내려받음
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # Node.js 실행 환경 구성
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      # yarn.lock에 기록된 버전대로 의존성 설치
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # 타입스크립트 컴파일 확인
+      - name: Build
+        run: yarn build
