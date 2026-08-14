@@ -12,12 +12,15 @@ import {
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
+import { AddPortfolioStockDto } from '../dto/request/add-portfolio-stock.dto';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
 import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
 import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
 import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
+import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dto';
+import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-removed.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosService } from '../services/portfolios.service';
 
@@ -84,5 +87,28 @@ export class PortfoliosController {
     @Param('portfolioId', ParseIntPipe) portfolioId: number,
   ): Promise<PortfolioDeletedDto> {
     return this.portfoliosService.deletePortfolio(user.id, portfolioId);
+  }
+
+  @Post(':portfolioId/stocks')
+  addStock(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+    @Body() dto: AddPortfolioStockDto,
+  ): Promise<PortfolioStockAddedDto> {
+    return this.portfoliosService.addStock(user.id, portfolioId, dto);
+  }
+
+  /**
+   * stockCode는 본문이 아니라 경로에 있어 ValidationPipe가 형식을 보지
+   * 않는다. 6자리 숫자가 아니면 조회에 걸리지 않아 PORTFOLIO_STOCK_NOT_FOUND
+   * 404가 나가므로, 별도 파이프 없이 서비스 판정에 맡긴다.
+   */
+  @Delete(':portfolioId/stocks/:stockCode')
+  removeStock(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+    @Param('stockCode') stockCode: string,
+  ): Promise<PortfolioStockRemovedDto> {
+    return this.portfoliosService.removeStock(user.id, portfolioId, stockCode);
   }
 }
