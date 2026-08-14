@@ -9,6 +9,8 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateFavoriteStockDto } from '../dto/request/create-favorite-stock.dto';
 import { FavoriteStockItemDto } from '../dto/response/favorite-stock-item.dto';
 import { FavoriteStockListResponseDto } from '../dto/response/favorite-stock-list-response.dto';
+import { FavoriteStockStatusResponseDto } from '../dto/response/favorite-stock-status-response.dto';
+import { RemoveFavoriteStockResponseDto } from '../dto/response/remove-favorite-stock-response.dto';
 import { FavoriteStocksErrorCode } from '../favorite-stocks.error';
 
 const ITEM_SELECT = {
@@ -120,5 +122,59 @@ export class FavoriteStocksService {
 
       throw error;
     }
+  }
+
+  /**
+   * 특정 종목이 관심종목으로 등록됐는지 조회한다.
+   *
+   * 종목 상세 화면의 하트 상태를 그리는 용도라 미등록도 404가 아니라
+   * 200이다. 프론트가 404를 에러로 처리하면 안 된다.
+   */
+  async findFavoriteStockStatus(
+    userId: number,
+    stockCode: string,
+  ): Promise<FavoriteStockStatusResponseDto> {
+    const favoriteStock = await this.prisma.favoriteStock.findUnique({
+      where: { userId_stockCode: { userId, stockCode } },
+      select: ITEM_SELECT,
+    });
+
+    return {
+      isFavorite: favoriteStock !== null,
+      favoriteStock: favoriteStock ? toItem(favoriteStock) : null,
+    };
+  }
+
+  /**
+   * 관심종목을 해제한다.
+   *
+   * delete가 아니라 deleteMany를 쓴다. delete는 대상이 없을 때 P2025를
+   * 던지고, 그러면 PrismaExceptionFilter가 DB_RECORD_NOT_FOUND를 먼저
+   * 돌려줘 명세가 요구하는 FAVORITE_STOCK_NOT_FOUND가 나가지 않는다.
+   *
+   * where에 userId를 함께 걸어서 남의 관심종목은 애초에 지워지지 않는다.
+   * 없는 종목과 남의 종목이 같은 404가 되는데, 403으로 나누면 남이
+   * 무엇을 등록했는지가 드러나므로 의도한 동작이다.
+   */
+  async removeFavoriteStock(
+    userId: number,
+    stockCode: string,
+  ): Promise<RemoveFavoriteStockResponseDto> {
+    const { count } = await this.prisma.favoriteStock.deleteMany({
+      where: { userId, stockCode },
+    });
+
+    if (count === 0) {
+      throw new BusinessException(
+        FavoriteStocksErrorCode.FAVORITE_STOCK_NOT_FOUND,
+        { userId, stockCode },
+      );
+    }
+
+    this.logger.info('관심종목을 해제했습니다', {
+      labels: { stock_code: stockCode, user_id: userId },
+    });
+
+    return { stockCode, removed: true };
   }
 }

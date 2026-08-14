@@ -1,10 +1,21 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
+import { ParseStockCodePipe } from 'src/common/pipe/parseStockCode.pipe';
 import { CreateFavoriteStockDto } from '../dto/request/create-favorite-stock.dto';
 import { FavoriteStockItemDto } from '../dto/response/favorite-stock-item.dto';
 import { FavoriteStockListResponseDto } from '../dto/response/favorite-stock-list-response.dto';
+import { FavoriteStockStatusResponseDto } from '../dto/response/favorite-stock-status-response.dto';
+import { RemoveFavoriteStockResponseDto } from '../dto/response/remove-favorite-stock-response.dto';
 import { FavoriteStocksService } from '../services/favorite-stocks.service';
 
 /**
@@ -35,5 +46,30 @@ export class FavoriteStocksController {
     @Body() dto: CreateFavoriteStockDto,
   ): Promise<FavoriteStockItemDto> {
     return this.favoriteStocksService.createFavoriteStock(user.id, dto);
+  }
+
+  /**
+   * 등록 여부 조회. 미등록도 200이다.
+   *
+   * 인자 없는 @Get()보다 아래에 둔다. 경로가 겹치지는 않지만, 구체적인
+   * 라우트를 파라미터 라우트보다 위에 두는 이 저장소 규칙을 따른다.
+   */
+  @Get(':stockCode')
+  findFavoriteStockStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('stockCode', ParseStockCodePipe) stockCode: string,
+  ): Promise<FavoriteStockStatusResponseDto> {
+    return this.favoriteStocksService.findFavoriteStockStatus(
+      user.id,
+      stockCode,
+    );
+  }
+
+  @Delete(':stockCode')
+  removeFavoriteStock(
+    @CurrentUser() user: AuthUser,
+    @Param('stockCode', ParseStockCodePipe) stockCode: string,
+  ): Promise<RemoveFavoriteStockResponseDto> {
+    return this.favoriteStocksService.removeFavoriteStock(user.id, stockCode);
   }
 }
