@@ -1,4 +1,4 @@
-import { HiddenStockModule } from './hidden-stock/hidden-stock.module';
+import { UsersModule } from './domains/users/users.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -24,8 +24,8 @@ const imports = [
   AuthModule,
   /** 자산(가상계좌) 모듈 */
   AssetsModule,
-  /** Hidden-stock 모듈 */
-  HiddenStockModule,
+  /** 사용자 모듈 */
+  UsersModule,
 ];
 
 @Module({

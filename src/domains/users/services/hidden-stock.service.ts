@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { PostHiddenStockDto } from './dto/post-hidden-stock.dto';
+import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 import { BusinessException } from 'src/common/exception/businessException';
-import { TossApiService } from 'src/toss/toss-api.service';
-import { MarketsErrorCode } from 'src/markets/markets-error-code';
-import { HiddenStockErrorCode } from './hidden-stock-error-code';
+import { TossApiService } from 'src/domains/api/toss-api.service';
+import { MarketsErrorCode } from 'src/domains/markets/markets-error-code';
+import { HiddenStockErrorCode } from '../hidden-stock-error-code';
 
 @Injectable()
 export class HiddenStockService {

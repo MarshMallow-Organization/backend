@@ -2,8 +2,8 @@ import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
-import { HiddenStockService } from './hidden-stock.service';
-import { PostHiddenStockDto } from './dto/post-hidden-stock.dto';
+import { HiddenStockService } from '../services/hidden-stock.service';
+import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 
 @Controller('users/me/hidden-stocks')
 @UseGuards(StubAuthGuard)
