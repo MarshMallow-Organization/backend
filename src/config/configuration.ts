@@ -15,6 +15,17 @@ export default () => ({
     password: process.env.DB_PASSWORD ?? 'password',
     database: process.env.DB_DATABASE ?? 'cgate',
   },
+  /**
+   * 임시 스텁 인증(StubAuthGuard) 활성화 여부.
+   *
+   * 명시적으로 'true'를 넣어야만 켜진다. app.env는 미설정 시 'local'로
+   * 채워지므로 판정 기준으로 쓸 수 없다 — 환경변수를 깜빡한 배포가
+   * 인증 우회로 이어진다. 실제 JWT 가드가 붙으면 이 항목도 함께 지운다.
+   */
+  auth: {
+    stubEnabled: process.env.STUB_AUTH_ENABLED === 'true',
+  },
+
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
