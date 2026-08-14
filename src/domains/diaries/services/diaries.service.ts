@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BusinessException } from '../../../common/exception/businessException';
-import { DiariesErrorCode } from '../diaries.error';
+import { DiariesErrorCode } from '../error/diaries.error';
 import {
   DIARY_MAX_SIZE,
   GetDiariesQueryDto,

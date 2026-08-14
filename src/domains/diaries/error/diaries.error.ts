@@ -1,5 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
-import { defineErrorCodes } from '../../common/exception/errorDefinition';
+import { defineErrorCodes } from '../../../common/exception/errorDefinition';
 
 export const DiariesErrorCode = defineErrorCodes({
   INVALID_DATE_RANGE: {

@@ -8,6 +8,88 @@ import {
 } from './diaries.repository';
 import { DiariesService } from './diaries.service';
 
+type CreateDiaryRequest =
+  | {
+      orderId: number;
+      type: 'BUY';
+      date: string;
+      buyReason: string;
+      goalPrice?: number | null;
+      goalHoldPeriod?: 'SHORT_TERM' | 'MID_TERM' | 'LONG_TERM' | 'CUSTOM';
+      customGoalHoldPeriod?: string;
+      emotion: number;
+      memo?: string;
+    }
+  | {
+      orderId: number;
+      type: 'SELL';
+      date: string;
+      sellReasonCode:
+        | 'GOAL_REACHED'
+        | 'STOP_LOSS'
+        | 'REBALANCING'
+        | 'PROFIT_TAKING'
+        | 'OTHER';
+      sellReasonDetail?: string;
+      goalEvaluationCode?:
+        | 'KEPT_GOAL'
+        | 'SOLD_TOO_EARLY'
+        | 'SOLD_TOO_LATE'
+        | 'EMOTIONAL_SELL'
+        | 'AS_PLANNED'
+        | 'OTHER';
+      goalEvaluationDetail?: string;
+      emotion: number;
+      memo?: string;
+    };
+
+type DiaryOrderSnapshot = {
+  orderId: number;
+  userId: number;
+  type: 'BUY' | 'SELL';
+  corpCode: string;
+  corpName: string;
+  perAtTrade: number | null;
+  pbrAtTrade: number | null;
+  marketCapAtTrade: number | null;
+  candelChartAtUrl: string | null;
+};
+
+type CreateDiaryCommand = CreateDiaryRequest &
+  Pick<
+    DiaryOrderSnapshot,
+    | 'corpCode'
+    | 'corpName'
+    | 'perAtTrade'
+    | 'pbrAtTrade'
+    | 'marketCapAtTrade'
+    | 'candelChartAtUrl'
+  >;
+
+type CreateDiaryResult = {
+  diaryId: number;
+  orderId: number;
+  type: 'BUY' | 'SELL';
+  date: string;
+  createdAt: string;
+};
+
+type CreateDiaryRepository = {
+  findOrderById: (orderId: number) => Promise<DiaryOrderSnapshot | null>;
+  existsActiveDiary: (userId: number, orderId: number) => Promise<boolean>;
+  createDiary: (
+    userId: number,
+    command: CreateDiaryCommand,
+  ) => Promise<CreateDiaryResult>;
+};
+
+type CreateDiaryService = {
+  createDiary(
+    userId: number,
+    request: CreateDiaryRequest,
+  ): Promise<CreateDiaryResult>;
+};
+
 const expectBusinessException = async (
   promise: Promise<unknown>,
   code: string,
@@ -30,6 +112,7 @@ describe('DiariesService', () => {
   let service: DiariesService;
   let diariesRepository: jest.Mocked<DiariesRepository>;
   let findPage: jest.MockedFunction<DiariesRepository['findPage']>;
+  let createDiaryRepository: jest.Mocked<CreateDiaryRepository>;
 
   const userId = 7;
   const diary: DiaryListItem = {
@@ -65,6 +148,12 @@ describe('DiariesService', () => {
     diariesRepository = {
       findPage,
     };
+    createDiaryRepository = {
+      findOrderById: jest.fn(),
+      existsActiveDiary: jest.fn(),
+      createDiary: jest.fn(),
+    };
+    Object.assign(diariesRepository, createDiaryRepository);
 
     service = new DiariesService(diariesRepository);
   });
@@ -210,6 +299,148 @@ describe('DiariesService', () => {
         expect(findPage).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe('createDiary', () => {
+    const order: DiaryOrderSnapshot = {
+      orderId: 12,
+      userId,
+      type: 'BUY',
+      corpCode: '005930',
+      corpName: '삼성전자',
+      perAtTrade: 12.4,
+      pbrAtTrade: 1.1,
+      marketCapAtTrade: 430_000_000_000_000,
+      candelChartAtUrl: 'https://example.com/charts/005930.png',
+    };
+    const buyRequest: CreateDiaryRequest = {
+      orderId: order.orderId,
+      type: 'BUY',
+      date: '2026-07-30',
+      buyReason: 'AI 반도체 수요 증가와 저평가 구간이라고 판단했다.',
+      goalPrice: 290_000,
+      goalHoldPeriod: 'CUSTOM',
+      customGoalHoldPeriod: '45일',
+      emotion: 1,
+      memo: '실적 발표 전까지 관찰하기',
+    };
+    const created: CreateDiaryResult = {
+      diaryId: 1,
+      orderId: order.orderId,
+      type: 'BUY',
+      date: '2026-07-30',
+      createdAt: '2026-07-30T16:10:00.000Z',
+    };
+
+    const createDiary = (
+      request: CreateDiaryRequest,
+    ): Promise<CreateDiaryResult> =>
+      (service as unknown as CreateDiaryService).createDiary(userId, request);
+
+    beforeEach(() => {
+      createDiaryRepository.findOrderById.mockResolvedValue(order);
+      createDiaryRepository.existsActiveDiary.mockResolvedValue(false);
+      createDiaryRepository.createDiary.mockResolvedValue(created);
+    });
+
+    it('BUY 일기를 주문의 서버 관리 스냅샷과 함께 생성한다', async () => {
+      const result = await createDiary(buyRequest);
+
+      expect(createDiaryRepository.findOrderById).toHaveBeenCalledWith(
+        order.orderId,
+      );
+      expect(createDiaryRepository.existsActiveDiary).toHaveBeenCalledWith(
+        userId,
+        order.orderId,
+      );
+      expect(createDiaryRepository.createDiary).toHaveBeenCalledWith(userId, {
+        ...buyRequest,
+        corpCode: order.corpCode,
+        corpName: order.corpName,
+        perAtTrade: order.perAtTrade,
+        pbrAtTrade: order.pbrAtTrade,
+        marketCapAtTrade: order.marketCapAtTrade,
+        candelChartAtUrl: order.candelChartAtUrl,
+      });
+      expect(result).toEqual(created);
+    });
+
+    it('SELL 일기를 SELL 전용 필드와 함께 생성한다', async () => {
+      const sellOrder: DiaryOrderSnapshot = {
+        ...order,
+        orderId: 15,
+        type: 'SELL',
+      };
+      const sellRequest: CreateDiaryRequest = {
+        orderId: sellOrder.orderId,
+        type: 'SELL',
+        date: '2026-07-30',
+        sellReasonCode: 'GOAL_REACHED',
+        sellReasonDetail: '목표 가격에 도달하여 계획대로 매도했다.',
+        goalEvaluationCode: 'KEPT_GOAL',
+        goalEvaluationDetail: '원칙을 지킨 거래였다.',
+        emotion: 2,
+        memo: '앞으로도 계획에 따라 매도할 것',
+      };
+      const sellCreated: CreateDiaryResult = {
+        ...created,
+        orderId: sellOrder.orderId,
+        type: 'SELL',
+      };
+      createDiaryRepository.findOrderById.mockResolvedValue(sellOrder);
+      createDiaryRepository.createDiary.mockResolvedValue(sellCreated);
+
+      const result = await createDiary(sellRequest);
+
+      expect(createDiaryRepository.createDiary).toHaveBeenCalledWith(
+        userId,
+        expect.objectContaining(sellRequest),
+      );
+      expect(result).toEqual(sellCreated);
+    });
+
+    it('주문이 없으면 ORDER_NOT_FOUND를 던진다', async () => {
+      createDiaryRepository.findOrderById.mockResolvedValue(null);
+
+      await expectBusinessException(createDiary(buyRequest), 'ORDER_NOT_FOUND');
+      expect(createDiaryRepository.existsActiveDiary).not.toHaveBeenCalled();
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+
+    it('다른 사용자의 주문이면 존재 여부를 숨기고 ORDER_NOT_FOUND를 던진다', async () => {
+      createDiaryRepository.findOrderById.mockResolvedValue({
+        ...order,
+        userId: userId + 1,
+      });
+
+      await expectBusinessException(createDiary(buyRequest), 'ORDER_NOT_FOUND');
+      expect(createDiaryRepository.existsActiveDiary).not.toHaveBeenCalled();
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+
+    it('요청 type과 주문 유형이 다르면 ORDER_TYPE_MISMATCH를 던진다', async () => {
+      createDiaryRepository.findOrderById.mockResolvedValue({
+        ...order,
+        type: 'SELL',
+      });
+
+      await expectBusinessException(
+        createDiary(buyRequest),
+        'ORDER_TYPE_MISMATCH',
+      );
+      expect(createDiaryRepository.existsActiveDiary).not.toHaveBeenCalled();
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+
+    it('같은 주문의 활성 일기가 있으면 DIARY_ALREADY_EXISTS를 던진다', async () => {
+      createDiaryRepository.existsActiveDiary.mockResolvedValue(true);
+
+      await expectBusinessException(
+        createDiary(buyRequest),
+        'DIARY_ALREADY_EXISTS',
+      );
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
   });
 });
 /*
