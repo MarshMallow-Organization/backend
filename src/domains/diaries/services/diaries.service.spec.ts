@@ -3,89 +3,21 @@ import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
 import { DiariesRepository } from '../repositories/diaries.repository';
 import { DiaryPreviewDto } from '../dto/response/diary-preview.dto';
 import { DiaryPageCriteria, DiaryPageResult } from '../models/diary-page.model';
+import {
+  DiaryType,
+  GoalEvaluationCode,
+  GoalHoldPeriod,
+  PostDiariesDto,
+  SellReasonCode,
+} from '../dto/request/post-diaries.dto';
+import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
+import { DiaryOrderSnapshot } from '../models/diary-order-snapshot.model';
 import { DiariesService } from './diaries.service';
 
-type CreateDiaryRequest =
-  | {
-      orderId: number;
-      type: 'BUY';
-      date: string;
-      buyReason: string;
-      goalPrice?: number | null;
-      goalHoldPeriod?: 'SHORT_TERM' | 'MID_TERM' | 'LONG_TERM' | 'CUSTOM';
-      customGoalHoldPeriod?: string;
-      emotion: number;
-      memo?: string;
-    }
-  | {
-      orderId: number;
-      type: 'SELL';
-      date: string;
-      sellReasonCode:
-        | 'GOAL_REACHED'
-        | 'STOP_LOSS'
-        | 'REBALANCING'
-        | 'PROFIT_TAKING'
-        | 'OTHER';
-      sellReasonDetail?: string;
-      goalEvaluationCode?:
-        | 'KEPT_GOAL'
-        | 'SOLD_TOO_EARLY'
-        | 'SOLD_TOO_LATE'
-        | 'EMOTIONAL_SELL'
-        | 'AS_PLANNED'
-        | 'OTHER';
-      goalEvaluationDetail?: string;
-      emotion: number;
-      memo?: string;
-    };
-
-type DiaryOrderSnapshot = {
-  orderId: number;
-  userId: number;
-  type: 'BUY' | 'SELL';
-  corpCode: string;
-  corpName: string;
-  perAtTrade: number | null;
-  pbrAtTrade: number | null;
-  marketCapAtTrade: number | null;
-  candelChartAtUrl: string | null;
-};
-
-type CreateDiaryCommand = CreateDiaryRequest &
-  Pick<
-    DiaryOrderSnapshot,
-    | 'corpCode'
-    | 'corpName'
-    | 'perAtTrade'
-    | 'pbrAtTrade'
-    | 'marketCapAtTrade'
-    | 'candelChartAtUrl'
-  >;
-
-type CreateDiaryResult = {
-  diaryId: number;
-  orderId: number;
-  type: 'BUY' | 'SELL';
-  date: string;
-  createdAt: string;
-};
-
-type CreateDiaryRepository = {
-  findOrderById: (orderId: number) => Promise<DiaryOrderSnapshot | null>;
-  existsActiveDiary: (userId: number, orderId: number) => Promise<boolean>;
-  createDiary: (
-    userId: number,
-    command: CreateDiaryCommand,
-  ) => Promise<CreateDiaryResult>;
-};
-
-type CreateDiaryService = {
-  createDiary(
-    userId: number,
-    request: CreateDiaryRequest,
-  ): Promise<CreateDiaryResult>;
-};
+type CreateDiaryRepository = Pick<
+  DiariesRepository,
+  'findOrderById' | 'existsActiveDiary' | 'createDiary'
+>;
 
 const expectBusinessException = async (
   promise: Promise<unknown>,
@@ -142,15 +74,15 @@ describe('DiariesService', () => {
         });
       },
     );
-    diariesRepository = {
-      findPage,
-    };
     createDiaryRepository = {
       findOrderById: jest.fn(),
       existsActiveDiary: jest.fn(),
       createDiary: jest.fn(),
     };
-    Object.assign(diariesRepository, createDiaryRepository);
+    diariesRepository = {
+      findPage,
+      ...createDiaryRepository,
+    };
 
     service = new DiariesService(diariesRepository);
   });
@@ -302,7 +234,7 @@ describe('DiariesService', () => {
     const order: DiaryOrderSnapshot = {
       orderId: 12,
       userId,
-      type: 'BUY',
+      type: DiaryType.BUY,
       corpCode: '005930',
       corpName: '삼성전자',
       perAtTrade: 12.4,
@@ -310,29 +242,28 @@ describe('DiariesService', () => {
       marketCapAtTrade: 430_000_000_000_000,
       candelChartAtUrl: 'https://example.com/charts/005930.png',
     };
-    const buyRequest: CreateDiaryRequest = {
+    const buyRequest: PostDiariesDto = {
       orderId: order.orderId,
-      type: 'BUY',
+      type: DiaryType.BUY,
       date: '2026-07-30',
       buyReason: 'AI 반도체 수요 증가와 저평가 구간이라고 판단했다.',
       goalPrice: 290_000,
-      goalHoldPeriod: 'CUSTOM',
+      goalHoldPeriod: GoalHoldPeriod.CUSTOM,
       customGoalHoldPeriod: '45일',
       emotion: 1,
       memo: '실적 발표 전까지 관찰하기',
     };
-    const created: CreateDiaryResult = {
+    const created: CreateDiaryResponseDto = {
       diaryId: 1,
       orderId: order.orderId,
-      type: 'BUY',
+      type: DiaryType.BUY,
       date: '2026-07-30',
       createdAt: '2026-07-30T16:10:00.000Z',
     };
 
     const createDiary = (
-      request: CreateDiaryRequest,
-    ): Promise<CreateDiaryResult> =>
-      (service as unknown as CreateDiaryService).createDiary(userId, request);
+      request: PostDiariesDto,
+    ): Promise<CreateDiaryResponseDto> => service.createDiary(userId, request);
 
     beforeEach(() => {
       createDiaryRepository.findOrderById.mockResolvedValue(order);
@@ -366,23 +297,23 @@ describe('DiariesService', () => {
       const sellOrder: DiaryOrderSnapshot = {
         ...order,
         orderId: 15,
-        type: 'SELL',
+        type: DiaryType.SELL,
       };
-      const sellRequest: CreateDiaryRequest = {
+      const sellRequest: PostDiariesDto = {
         orderId: sellOrder.orderId,
-        type: 'SELL',
+        type: DiaryType.SELL,
         date: '2026-07-30',
-        sellReasonCode: 'GOAL_REACHED',
+        sellReasonCode: SellReasonCode.GOAL_REACHED,
         sellReasonDetail: '목표 가격에 도달하여 계획대로 매도했다.',
-        goalEvaluationCode: 'KEPT_GOAL',
+        goalEvaluationCode: GoalEvaluationCode.KEPT_GOAL,
         goalEvaluationDetail: '원칙을 지킨 거래였다.',
         emotion: 2,
         memo: '앞으로도 계획에 따라 매도할 것',
       };
-      const sellCreated: CreateDiaryResult = {
+      const sellCreated: CreateDiaryResponseDto = {
         ...created,
         orderId: sellOrder.orderId,
-        type: 'SELL',
+        type: DiaryType.SELL,
       };
       createDiaryRepository.findOrderById.mockResolvedValue(sellOrder);
       createDiaryRepository.createDiary.mockResolvedValue(sellCreated);
@@ -418,7 +349,7 @@ describe('DiariesService', () => {
     it('요청 type과 주문 유형이 다르면 ORDER_TYPE_MISMATCH를 던진다', async () => {
       createDiaryRepository.findOrderById.mockResolvedValue({
         ...order,
-        type: 'SELL',
+        type: DiaryType.SELL,
       });
 
       await expectBusinessException(
