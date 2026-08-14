@@ -7,6 +7,7 @@ import {
 import { CustomLogger } from 'src/common/logger/customLogger';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
+import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
@@ -142,5 +143,86 @@ export class PortfoliosService {
 
       throw error;
     }
+  }
+
+  /**
+   * 가상계좌 순서를 변경한다.
+   *
+   * 이동 명령이 아니라 결과 상태 전체를 받는다. 요청 배열의 인덱스를 그대로
+   * sortOrder로 재할당하므로, 프론트는 드래그가 끝난 목록을 그대로 보내면 된다.
+   *
+   * 셋 중 하나라도 어긋나면 PORTFOLIO_ORDER_MISMATCH다.
+   *   (1) 배열 내 중복  (2) 사용자 소유가 아닌 ID  (3) 보유 개수와 불일치
+   *
+   * 셋을 한 코드로 묶은 이유가 있다. 나누면 "없는 ID"와 "남의 ID"를 응답으로
+   * 구분할 수 있게 되어, 남의 계좌 존재 여부를 캐낼 수 있다.
+   *
+   * 조회부터 갱신까지 한 트랜잭션에 넣는다. 검사 후 갱신 전에 다른 요청이
+   * 계좌를 지우면 개수가 어긋난 채로 갱신될 수 있기 때문이다.
+   */
+  async reorderPortfolios(
+    userId: number,
+    dto: ReorderPortfoliosDto,
+  ): Promise<PortfolioListResponseDto> {
+    const { portfolioIds } = dto;
+
+    const portfolios = await this.prisma.$transaction(async (tx) => {
+      const owned = await tx.virtualPortfolio.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+
+      const ownedIds = new Set(owned.map((portfolio) => portfolio.id));
+      const requestedIds = new Set(portfolioIds);
+
+      /**
+       * Set 크기 비교로 중복을 잡는다. 중복이 있으면 requestedIds가 줄어들어
+       * 아래 개수 비교에서도 걸리지만, 의도를 드러내려고 따로 둔다.
+       */
+      const hasDuplicate = requestedIds.size !== portfolioIds.length;
+
+      const countMismatch = requestedIds.size !== ownedIds.size;
+
+      const hasForeignId = portfolioIds.some((id) => !ownedIds.has(id));
+
+      if (hasDuplicate || countMismatch || hasForeignId) {
+        throw new BusinessException(
+          PortfoliosErrorCode.PORTFOLIO_ORDER_MISMATCH,
+          {
+            userId,
+            requested: portfolioIds.length,
+            owned: ownedIds.size,
+          },
+        );
+      }
+
+      /**
+       * UNIQUE 제약이 (userId, name)뿐이라 sortOrder가 잠시 겹쳐도 문제없다.
+       * 겹침을 피하려고 임시값으로 밀어두는 2단계 갱신은 필요하지 않다.
+       */
+      await Promise.all(
+        portfolioIds.map((id, index) =>
+          tx.virtualPortfolio.update({
+            where: { id },
+            data: { sortOrder: index },
+          }),
+        ),
+      );
+
+      return tx.virtualPortfolio.findMany({
+        where: { userId },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: SUMMARY_SELECT,
+      });
+    });
+
+    this.logger.info('가상계좌 순서를 변경했습니다', {
+      labels: { user_id: userId, count: portfolioIds.length },
+    });
+
+    return {
+      portfolios: portfolios.map(toSummary),
+      maxCount: MAX_PORTFOLIO_COUNT,
+    };
   }
 }

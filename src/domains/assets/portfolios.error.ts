@@ -23,4 +23,16 @@ export const PortfoliosErrorCode = defineErrorCodes({
     status: HttpStatus.CONFLICT,
     message: '가상계좌는 최대 4개까지 생성할 수 있습니다.',
   },
+
+  /**
+   * 순서 변경 요청이 보유 목록과 어긋난 경우.
+   *
+   * 중복·남의 계좌·개수 불일치를 하나로 묶는다. 어느 쪽이 틀렸는지 나누면
+   * 남의 계좌 ID가 존재하는지를 응답으로 확인할 수 있게 된다.
+   */
+  PORTFOLIO_ORDER_MISMATCH: {
+    code: 'PORTFOLIO_ORDER_MISMATCH',
+    status: HttpStatus.BAD_REQUEST,
+    message: '보유한 가상계좌 전체를 중복 없이 전달해야 합니다.',
+  },
 });

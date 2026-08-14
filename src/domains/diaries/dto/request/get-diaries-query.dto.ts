@@ -26,7 +26,7 @@ export class GetDiariesQueryDto {
   size?: number;
 
   @IsOptional()
-  @IsArray() 
+  @IsArray()
   @Transform(({ value }) =>
     value === undefined ? undefined : Array.isArray(value) ? value : [value],
   ) //하나의 date만 요청을 한 경우 배열로 transform
