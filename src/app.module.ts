@@ -11,11 +11,8 @@ import { HttpLoggingMiddleware } from './common/logger/httpLogging.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { ResponseInterceptor } from './global/interceptor/response.interceptor';
 import { AuthModule } from './domains/auth/auth.module';
-<<<<<<< HEAD
 import { DiariesModule } from './domains/diaries/diaries.module';
-=======
 import { AssetsModule } from './domains/assets/assets.module';
->>>>>>> dev
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -25,13 +22,10 @@ const imports = [
   PrismaModule,
   /**Auth 인증 모듈 */
   AuthModule,
-<<<<<<< HEAD
   /** 매매 일기 모듈 */
   DiariesModule,
-=======
   /** 자산(가상계좌) 모듈 */
   AssetsModule,
->>>>>>> dev
 ];
 
 @Module({
