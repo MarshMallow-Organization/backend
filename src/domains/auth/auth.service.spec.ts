@@ -97,14 +97,15 @@ describe('AuthService', () => {
       );
     });
 
-    it('이메일과 비밀번호가 일치하면 유저를 반환한다', async () => {
+    it('이메일과 비밀번호가 일치하면 password를 제외한 유저를 반환한다', async () => {
       const user = { id: 1, email: 'a@test.com', password: 'hashed' };
       prisma.user.findUnique.mockResolvedValue(user);
       bcryptMock.compare.mockResolvedValue(true as never);
 
       const result = await service.validateUser('a@test.com', 'pw');
 
-      expect(result).toEqual(user);
+      expect(result).toEqual({ id: 1, email: 'a@test.com' });
+      expect(result).not.toHaveProperty('password');
     });
   });
 
@@ -145,6 +146,7 @@ describe('AuthService', () => {
       expect(result).toEqual({
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
+        refreshExpiresInMs: 14 * 24 * 60 * 60 * 1000,
       });
     });
   });
@@ -173,6 +175,7 @@ describe('AuthService', () => {
       expect(result).toEqual({
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
+        refreshExpiresInMs: 14 * 24 * 60 * 60 * 1000,
       });
     });
 
@@ -190,7 +193,7 @@ describe('AuthService', () => {
         data: expect.objectContaining({
           userId: 1,
           refreshTokenHash: '',
-        }),
+        }) as { userId: number; refreshTokenHash: string },
       });
       expect(bcryptMock.hash).toHaveBeenCalledWith('refresh-token', 10);
       expect(prisma.loginSession.update).toHaveBeenCalledWith({

@@ -55,7 +55,10 @@ export class AuthService {
       });
     }
 
-    return user;
+    // req.user로 그대로 흘러가는 값이라, 해시라도 비밀번호는 남기지 않는다.
+    const { password: _password, ...safeUser } = user;
+    void _password;
+    return safeUser;
   }
 
   async signup(dto: SignupDto) {
@@ -120,6 +123,10 @@ export class AuthService {
       data: { refreshTokenHash },
     });
 
-    return { accessToken, refreshToken };
+    return {
+      accessToken,
+      refreshToken,
+      refreshExpiresInMs: refreshExpiresInSec * 1000,
+    };
   }
 }

@@ -28,8 +28,9 @@ export class AuthController {
     @Body() dto: SignupDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { accessToken, refreshToken } = await this.authService.signup(dto);
-    this.setRefreshCookie(res, refreshToken);
+    const { accessToken, refreshToken, refreshExpiresInMs } =
+      await this.authService.signup(dto);
+    this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
     return { accessToken };
   }
 
@@ -40,20 +41,23 @@ export class AuthController {
     @Req() req: { user: { id: number; email: string } },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { accessToken, refreshToken } = await this.authService.issueTokens(
-      req.user,
-    );
-    this.setRefreshCookie(res, refreshToken);
+    const { accessToken, refreshToken, refreshExpiresInMs } =
+      await this.authService.issueTokens(req.user);
+    this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
     return { accessToken };
   }
 
-  private setRefreshCookie(res: Response, refreshToken: string) {
+  private setRefreshCookie(
+    res: Response,
+    refreshToken: string,
+    maxAge: number,
+  ) {
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
       httpOnly: true,
       secure: this.configService.get<string>('app.env') !== 'local',
       sameSite: 'lax',
       path: '/',
-      maxAge: 14 * 24 * 60 * 60 * 1000,
+      maxAge,
     });
   }
 }
