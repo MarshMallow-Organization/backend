@@ -12,6 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ResponseInterceptor } from './global/interceptor/response.interceptor';
 import { AuthModule } from './domains/auth/auth.module';
 import { AssetsModule } from './domains/assets/assets.module';
+import { UsersModule } from './domains/users/users.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -23,6 +24,8 @@ const imports = [
   AuthModule,
   /** 자산(가상계좌) 모듈 */
   AssetsModule,
+  /** 사용자(관심종목) 모듈 */
+  UsersModule,
 ];
 
 @Module({
