@@ -29,7 +29,12 @@ model User {
   trades            Trade[]
   diaries           Diary[]
   virtualPortfolios VirtualPortfolio[]
-  favoriteStocks    FavoriteStock[]
+
+  /// VirtualPortfolioStock.userId의 역방향. 종목을 사용자당 한 계좌에만
+  /// 담기 위한 @@unique([userId, stockCode]) 때문에 비정규화된 관계다.
+  virtualPortfolioStocks VirtualPortfolioStock[]
+
+  favoriteStocks FavoriteStock[]
   hiddenStocks      HiddenStock[]
   profilePic        ProfilePic?
   loginSessions     LoginSession[]
@@ -258,10 +263,19 @@ model VirtualPortfolioStock {
   virtualPortfolioId Int
   virtualPortfolio   VirtualPortfolio @relation(fields: [virtualPortfolioId], references: [id])
 
+  /// 같은 종목을 여러 가상계좌에 중복해서 담지 못하게 하는 제약의 기준.
+  /// 계좌를 타고 올라가면 알 수 있는 값이지만, UNIQUE는 한 테이블 안에서만
+  /// 걸 수 있어 비정규화한다.
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([virtualPortfolioId, stockCode])
+  /// 사용자당 종목 1회. (virtualPortfolioId, stockCode)보다 상위 제약이라
+  /// 그쪽은 따로 두지 않는다.
+  @@unique([userId, stockCode])
+  @@index([virtualPortfolioId])
   @@map("virtual_portfolio_stocks")
 }
 
