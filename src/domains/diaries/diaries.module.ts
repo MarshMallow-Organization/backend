@@ -1,6 +1,6 @@
 import { Module, NotImplementedException } from '@nestjs/common';
 import { DiariesController } from './controllers/diaries.controller';
-import { DiariesRepository } from './services/diaries.repository';
+import { DiariesRepository } from './repositories/diaries.repository';
 import { DiariesService } from './services/diaries.service';
 
 @Module({

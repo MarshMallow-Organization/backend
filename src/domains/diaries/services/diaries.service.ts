@@ -7,12 +7,10 @@ import {
 } from '../dto/request/get-diaries-query.dto';
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
 import { PostDiariesDto } from '../dto/request/post-diaries.dto';
-import {
-  CreateDiaryCommand,
-  CreateDiaryResult,
-  DiariesRepository,
-  DiaryPageCriteria,
-} from './diaries.repository';
+import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
+import { CreateDiaryCommand } from '../models/create-diary-command.model';
+import { DiaryPageCriteria } from '../models/diary-page.model';
+import { DiariesRepository } from '../repositories/diaries.repository';
 
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 10;
@@ -60,7 +58,7 @@ export class DiariesService {
   async createDiary(
     userId: number,
     request: PostDiariesDto,
-  ): Promise<CreateDiaryResult> {
+  ): Promise<CreateDiaryResponseDto> {
     const order = await this.diariesRepository.findOrderById(request.orderId);
 
     // 타인의 주문도 존재 여부를 노출하지 않도록 미존재 주문과 동일하게 처리한다.

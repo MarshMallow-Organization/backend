@@ -131,7 +131,7 @@ export class PostDiariesDto {
   @Max(5)
   emotion: number;
   //공통 diary
-  
+
   @ApiPropertyOptional({
     description: '매수 이유. BUY 일기일 때 필수이다.',
     example: 'AI 반도체 수요 증가와 저평가 구간이라고 판단했습니다.',

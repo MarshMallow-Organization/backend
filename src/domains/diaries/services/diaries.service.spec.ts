@@ -1,11 +1,8 @@
 import { BusinessException } from '../../../common/exception/businessException';
 import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
-import {
-  DiariesRepository,
-  DiaryListItem,
-  DiaryPageCriteria,
-  DiaryPageResult,
-} from './diaries.repository';
+import { DiariesRepository } from '../repositories/diaries.repository';
+import { DiaryPreviewDto } from '../dto/response/diary-preview.dto';
+import { DiaryPageCriteria, DiaryPageResult } from '../models/diary-page.model';
 import { DiariesService } from './diaries.service';
 
 type CreateDiaryRequest =
@@ -115,7 +112,7 @@ describe('DiariesService', () => {
   let createDiaryRepository: jest.Mocked<CreateDiaryRepository>;
 
   const userId = 7;
-  const diary: DiaryListItem = {
+  const diary: DiaryPreviewDto = {
     diaryId: 1,
     orderId: 12,
     type: 'BUY',

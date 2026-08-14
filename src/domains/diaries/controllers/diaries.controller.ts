@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
 import { PostDiariesDto } from '../dto/request/post-diaries.dto';
+import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
-import { CreateDiaryResult } from '../services/diaries.repository';
 import { DiariesService } from '../services/diaries.service';
 
 @Controller('diaries')
@@ -21,7 +21,7 @@ export class DiariesController {
   createDiary(
     @Headers('x-user-id') userIdHeader: string | undefined,
     @Body() request: PostDiariesDto,
-  ): Promise<CreateDiaryResult> {
+  ): Promise<CreateDiaryResponseDto> {
     const userId = Number(userIdHeader);
 
     if (!Number.isInteger(userId) || userId < 1) {
