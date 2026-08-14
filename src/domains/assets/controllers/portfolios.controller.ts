@@ -1,10 +1,23 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
+import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
+import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
+import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosService } from '../services/portfolios.service';
 
@@ -50,5 +63,26 @@ export class PortfoliosController {
     @Body() dto: ReorderPortfoliosDto,
   ): Promise<PortfolioListResponseDto> {
     return this.portfoliosService.reorderPortfolios(user.id, dto);
+  }
+
+  @Patch(':portfolioId')
+  updatePortfolioName(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+    @Body() dto: UpdatePortfolioNameDto,
+  ): Promise<PortfolioNameUpdatedDto> {
+    return this.portfoliosService.updatePortfolioName(
+      user.id,
+      portfolioId,
+      dto,
+    );
+  }
+
+  @Delete(':portfolioId')
+  deletePortfolio(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+  ): Promise<PortfolioDeletedDto> {
+    return this.portfoliosService.deletePortfolio(user.id, portfolioId);
   }
 }

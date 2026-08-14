@@ -11,6 +11,18 @@ import { defineErrorCodes } from 'src/common/exception/errorDefinition';
  * portfolioId·name 같은 조사용 값은 BusinessException의 labels로 넘긴다.
  */
 export const PortfoliosErrorCode = defineErrorCodes({
+  /**
+   * 존재하지 않거나 남의 계좌인 경우 모두 이 코드다.
+   *
+   * 403으로 나누면 "그 ID는 존재하지만 네 것이 아니다"가 노출되어
+   * 남의 계좌 존재 여부를 캐낼 수 있다.
+   */
+  PORTFOLIO_NOT_FOUND: {
+    code: 'PORTFOLIO_NOT_FOUND',
+    status: HttpStatus.NOT_FOUND,
+    message: '가상계좌를 찾을 수 없습니다.',
+  },
+
   PORTFOLIO_NAME_DUPLICATED: {
     code: 'PORTFOLIO_NAME_DUPLICATED',
     status: HttpStatus.CONFLICT,

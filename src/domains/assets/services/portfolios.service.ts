@@ -8,7 +8,10 @@ import { CustomLogger } from 'src/common/logger/customLogger';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
+import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
+import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
+import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
 
@@ -224,5 +227,142 @@ export class PortfoliosService {
       portfolios: portfolios.map(toSummary),
       maxCount: MAX_PORTFOLIO_COUNT,
     };
+  }
+
+  /**
+   * 가상계좌 이름을 변경한다. sortOrder는 건드리지 않는다.
+   *
+   * 소유권 확인과 이름 중복 확인을 한 트랜잭션에 넣는다. 중복 판정은
+   * 생성과 같은 이유로 사전 조회가 필요하다 — 그냥 update하면
+   * PrismaExceptionFilter가 DB_UNIQUE_CONSTRAINT를 먼저 돌려준다.
+   */
+  async updatePortfolioName(
+    userId: number,
+    portfolioId: number,
+    dto: UpdatePortfolioNameDto,
+  ): Promise<PortfolioNameUpdatedDto> {
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await this.findOwnedOrThrow(tx, userId, portfolioId);
+
+        const duplicated = await tx.virtualPortfolio.findUnique({
+          where: { userId_name: { userId, name: dto.name } },
+          select: { id: true },
+        });
+
+        /**
+         * 자기 자신은 중복이 아니다. 같은 이름으로 다시 보내는 요청은
+         * 성공해야 한다(멱등). id 비교가 없으면 여기서 409가 나간다.
+         */
+        if (duplicated && duplicated.id !== portfolioId) {
+          throw new BusinessException(
+            PortfoliosErrorCode.PORTFOLIO_NAME_DUPLICATED,
+            { userId, name: dto.name },
+          );
+        }
+
+        return tx.virtualPortfolio.update({
+          where: { id: portfolioId },
+          data: { name: dto.name },
+          select: { id: true, name: true, updatedAt: true },
+        });
+      });
+
+      this.logger.info('가상계좌 이름을 변경했습니다', {
+        labels: { portfolio_id: updated.id, user_id: userId },
+      });
+
+      return {
+        id: updated.id,
+        name: updated.name,
+        updatedAt: updated.updatedAt.toISOString(),
+      };
+    } catch (error) {
+      /** 동시 요청으로 사전 검사를 통과했더라도 UNIQUE 제약이 잡아준다. */
+      if (isPrismaError(error, PrismaErrorCode.UNIQUE_CONSTRAINT)) {
+        throw new BusinessException(
+          PortfoliosErrorCode.PORTFOLIO_NAME_DUPLICATED,
+          { userId, name: dto.name },
+        );
+      }
+
+      /** 소유권 확인과 update 사이에 다른 요청이 지운 경우. */
+      if (isPrismaError(error, PrismaErrorCode.RECORD_NOT_FOUND)) {
+        throw new BusinessException(PortfoliosErrorCode.PORTFOLIO_NOT_FOUND, {
+          userId,
+          portfolioId,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * 가상계좌를 삭제한다.
+   *
+   * 소속 종목을 먼저 지운 뒤 계좌를 지운다. 스키마에 onDelete 설정이 없어
+   * 기본값 Restrict가 걸리므로, 순서를 지키지 않으면 P2003이 나고
+   * PrismaExceptionFilter가 DB_FOREIGN_KEY_CONSTRAINT 409를 돌려준다.
+   *
+   * 남은 계좌의 sortOrder는 재계산하지 않는다. 0,1,2,3에서 1을 지우면
+   * 0,2,3이 되지만 ORDER BY sortOrder, id로 정렬은 정상 동작한다.
+   */
+  async deletePortfolio(
+    userId: number,
+    portfolioId: number,
+  ): Promise<PortfolioDeletedDto> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.findOwnedOrThrow(tx, userId, portfolioId);
+
+        await tx.virtualPortfolioStock.deleteMany({
+          where: { virtualPortfolioId: portfolioId },
+        });
+
+        await tx.virtualPortfolio.delete({ where: { id: portfolioId } });
+      });
+
+      this.logger.info('가상계좌를 삭제했습니다', {
+        labels: { portfolio_id: portfolioId, user_id: userId },
+      });
+
+      return { id: portfolioId, deleted: true };
+    } catch (error) {
+      /** 소유권 확인과 delete 사이에 다른 요청이 먼저 지운 경우. */
+      if (isPrismaError(error, PrismaErrorCode.RECORD_NOT_FOUND)) {
+        throw new BusinessException(PortfoliosErrorCode.PORTFOLIO_NOT_FOUND, {
+          userId,
+          portfolioId,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * 사용자 소유의 계좌인지 확인한다. 아니면 PORTFOLIO_NOT_FOUND.
+   *
+   * 없는 계좌와 남의 계좌를 같은 404로 묶는다. 403으로 나누면
+   * "그 ID는 존재하지만 네 것이 아니다"가 드러나 남의 계좌 존재 여부를
+   * 캐낼 수 있다. PORTFOLIO_ORDER_MISMATCH를 하나로 묶은 것과 같은 이유다.
+   */
+  private async findOwnedOrThrow(
+    tx: Pick<PrismaService, 'virtualPortfolio'>,
+    userId: number,
+    portfolioId: number,
+  ): Promise<void> {
+    const owned = await tx.virtualPortfolio.findFirst({
+      where: { id: portfolioId, userId },
+      select: { id: true },
+    });
+
+    if (!owned) {
+      throw new BusinessException(PortfoliosErrorCode.PORTFOLIO_NOT_FOUND, {
+        userId,
+        portfolioId,
+      });
+    }
   }
 }
