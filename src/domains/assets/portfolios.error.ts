@@ -11,6 +11,18 @@ import { defineErrorCodes } from 'src/common/exception/errorDefinition';
  * portfolioId·name 같은 조사용 값은 BusinessException의 labels로 넘긴다.
  */
 export const PortfoliosErrorCode = defineErrorCodes({
+  /**
+   * 존재하지 않거나 남의 계좌인 경우 모두 이 코드다.
+   *
+   * 403으로 나누면 "그 ID는 존재하지만 네 것이 아니다"가 노출되어
+   * 남의 계좌 존재 여부를 캐낼 수 있다.
+   */
+  PORTFOLIO_NOT_FOUND: {
+    code: 'PORTFOLIO_NOT_FOUND',
+    status: HttpStatus.NOT_FOUND,
+    message: '가상계좌를 찾을 수 없습니다.',
+  },
+
   PORTFOLIO_NAME_DUPLICATED: {
     code: 'PORTFOLIO_NAME_DUPLICATED',
     status: HttpStatus.CONFLICT,
@@ -22,5 +34,17 @@ export const PortfoliosErrorCode = defineErrorCodes({
     code: 'PORTFOLIO_LIMIT_EXCEEDED',
     status: HttpStatus.CONFLICT,
     message: '가상계좌는 최대 4개까지 생성할 수 있습니다.',
+  },
+
+  /**
+   * 순서 변경 요청이 보유 목록과 어긋난 경우.
+   *
+   * 중복·남의 계좌·개수 불일치를 하나로 묶는다. 어느 쪽이 틀렸는지 나누면
+   * 남의 계좌 ID가 존재하는지를 응답으로 확인할 수 있게 된다.
+   */
+  PORTFOLIO_ORDER_MISMATCH: {
+    code: 'PORTFOLIO_ORDER_MISMATCH',
+    status: HttpStatus.BAD_REQUEST,
+    message: '보유한 가상계좌 전체를 중복 없이 전달해야 합니다.',
   },
 });
