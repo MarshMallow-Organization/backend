@@ -13,6 +13,7 @@ import {
 import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
 import { DiaryOrderSnapshot } from '../models/diary-order-snapshot.model';
 import { DiariesService } from './diaries.service';
+import { BuyDiaryDetailDto } from '../dto/response/diary-detail-response.dto';
 
 type CreateDiaryRepository = Pick<
   DiariesRepository,
@@ -40,6 +41,7 @@ const expectBusinessException = async (
 describe('DiariesService', () => {
   let service: DiariesService;
   let diariesRepository: jest.Mocked<DiariesRepository>;
+  let findDetailById: jest.MockedFunction<DiariesRepository['findDetailById']>;
   let findPage: jest.MockedFunction<DiariesRepository['findPage']>;
   let createDiaryRepository: jest.Mocked<CreateDiaryRepository>;
 
@@ -60,6 +62,7 @@ describe('DiariesService', () => {
   };
 
   beforeEach(() => {
+    findDetailById = jest.fn();
     findPage = jest.fn(
       (
         _userId: number,
@@ -80,11 +83,54 @@ describe('DiariesService', () => {
       createDiary: jest.fn(),
     };
     diariesRepository = {
+      findDetailById,
       findPage,
       ...createDiaryRepository,
     };
 
     service = new DiariesService(diariesRepository);
+  });
+
+  describe('getDiaryDetail', () => {
+    const detail: BuyDiaryDetailDto = {
+      diaryId: 1,
+      orderId: 12,
+      type: DiaryType.BUY,
+      date: '2026-07-30',
+      corpCode: '005930',
+      corpName: '삼성전자',
+      orderedAt: '2026-07-30T15:56:00.000Z',
+      price: 255_000,
+      quantity: 5,
+      totalAmount: 1_275_000,
+      perAtTrade: 6.4,
+      pbrAtTrade: 2.8,
+      marketCapAtTrade: 1_698_000_000_000_000,
+      candelChartAtUrl: 'https://example.com/candle.png',
+      buyReason: '저평가 구간이라고 판단했다.',
+      goalPrice: 290_000,
+      goalHoldPeriod: GoalHoldPeriod.MID_TERM,
+      emotion: 1,
+      memo: '실적 발표 전까지 관찰하기',
+      createdAt: '2026-07-30T16:10:00.000Z',
+      updatedAt: '2026-07-30T16:10:00.000Z',
+    };
+
+    it('사용자와 일기 ID로 상세를 조회한다', async () => {
+      findDetailById.mockResolvedValue(detail);
+
+      await expect(service.getDiaryDetail(userId, 1)).resolves.toEqual(detail);
+      expect(findDetailById).toHaveBeenCalledWith(userId, 1);
+    });
+
+    it('일기가 없거나 소유자가 다르면 DIARY_NOT_FOUND를 던진다', async () => {
+      findDetailById.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.getDiaryDetail(userId, 999),
+        'DIARY_NOT_FOUND',
+      );
+    });
   });
 
   describe('getDiaries', () => {
