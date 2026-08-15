@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TossApiModule } from 'src/domains/api/toss.module';
 import { PrismaModule } from 'src/prisma/prisma.module';
+import { FavoriteStocksController } from './controllers/favorite-stocks.controller';
 import { HiddenStockController } from './controllers/hidden-stock.controller';
+import { FavoriteStocksService } from './services/favorite-stocks.service';
 import { HiddenStockService } from './services/hidden-stock.service';
 
 @Module({
+  /** PrismaModule은 @Global이 아니라서 도메인마다 직접 import해야 한다. */
   imports: [PrismaModule, TossApiModule],
-  controllers: [HiddenStockController],
-  providers: [HiddenStockService],
+  controllers: [FavoriteStocksController, HiddenStockController],
+  providers: [FavoriteStocksService, HiddenStockService],
 })
 export class UsersModule {}

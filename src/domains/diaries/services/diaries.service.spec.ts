@@ -1,12 +1,23 @@
 import { BusinessException } from '../../../common/exception/businessException';
 import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
+import { DiariesRepository } from '../repositories/diaries.repository';
+import { DiaryPreviewDto } from '../dto/response/diary-preview.dto';
+import { DiaryPageCriteria, DiaryPageResult } from '../models/diary-page.model';
 import {
-  DiariesRepository,
-  DiaryListItem,
-  DiaryPageCriteria,
-  DiaryPageResult,
-} from './diaries.repository';
+  DiaryType,
+  GoalEvaluationCode,
+  GoalHoldPeriod,
+  PostDiariesDto,
+  SellReasonCode,
+} from '../dto/request/post-diaries.dto';
+import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
+import { DiaryOrderSnapshot } from '../models/diary-order-snapshot.model';
 import { DiariesService } from './diaries.service';
+
+type CreateDiaryRepository = Pick<
+  DiariesRepository,
+  'findOrderById' | 'existsActiveDiary' | 'createDiary'
+>;
 
 const expectBusinessException = async (
   promise: Promise<unknown>,
@@ -30,9 +41,10 @@ describe('DiariesService', () => {
   let service: DiariesService;
   let diariesRepository: jest.Mocked<DiariesRepository>;
   let findPage: jest.MockedFunction<DiariesRepository['findPage']>;
+  let createDiaryRepository: jest.Mocked<CreateDiaryRepository>;
 
   const userId = 7;
-  const diary: DiaryListItem = {
+  const diary: DiaryPreviewDto = {
     diaryId: 1,
     orderId: 12,
     type: 'BUY',
@@ -62,8 +74,14 @@ describe('DiariesService', () => {
         });
       },
     );
+    createDiaryRepository = {
+      findOrderById: jest.fn(),
+      existsActiveDiary: jest.fn(),
+      createDiary: jest.fn(),
+    };
     diariesRepository = {
       findPage,
+      ...createDiaryRepository,
     };
 
     service = new DiariesService(diariesRepository);
@@ -210,6 +228,147 @@ describe('DiariesService', () => {
         expect(findPage).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe('createDiary', () => {
+    const order: DiaryOrderSnapshot = {
+      orderId: 12,
+      userId,
+      type: DiaryType.BUY,
+      corpCode: '005930',
+      corpName: '삼성전자',
+      perAtOrder: 12.4,
+      pbrAtOrder: 1.1,
+      marketCapAtOrder: 430_000_000_000_000,
+      candleChartAtOrderUrl: 'https://example.com/charts/005930.png',
+    };
+    const buyRequest: PostDiariesDto = {
+      orderId: order.orderId,
+      type: DiaryType.BUY,
+      date: '2026-07-30',
+      buyReason: 'AI 반도체 수요 증가와 저평가 구간이라고 판단했다.',
+      goalPrice: 290_000,
+      goalHoldPeriod: GoalHoldPeriod.CUSTOM,
+      customGoalHoldPeriod: '45일',
+      emotion: 1,
+      memo: '실적 발표 전까지 관찰하기',
+    };
+    const created: CreateDiaryResponseDto = {
+      diaryId: 1,
+      orderId: order.orderId,
+      type: DiaryType.BUY,
+      date: '2026-07-30',
+      createdAt: '2026-07-30T16:10:00.000Z',
+    };
+
+    const createDiary = (
+      request: PostDiariesDto,
+    ): Promise<CreateDiaryResponseDto> => service.createDiary(userId, request);
+
+    beforeEach(() => {
+      createDiaryRepository.findOrderById.mockResolvedValue(order);
+      createDiaryRepository.existsActiveDiary.mockResolvedValue(false);
+      createDiaryRepository.createDiary.mockResolvedValue(created);
+    });
+
+    it('BUY 일기를 주문의 서버 관리 스냅샷과 함께 생성한다', async () => {
+      const result = await createDiary(buyRequest);
+
+      expect(createDiaryRepository.findOrderById).toHaveBeenCalledWith(
+        order.orderId,
+      );
+      expect(createDiaryRepository.existsActiveDiary).toHaveBeenCalledWith(
+        userId,
+        order.orderId,
+      );
+      expect(createDiaryRepository.createDiary).toHaveBeenCalledWith(userId, {
+        ...buyRequest,
+        corpCode: order.corpCode,
+        corpName: order.corpName,
+        perAtOrder: order.perAtOrder,
+        pbrAtOrder: order.pbrAtOrder,
+        marketCapAtOrder: order.marketCapAtOrder,
+        candleChartAtOrderUrl: order.candleChartAtOrderUrl,
+      });
+      expect(result).toEqual(created);
+    });
+
+    it('SELL 일기를 SELL 전용 필드와 함께 생성한다', async () => {
+      const sellOrder: DiaryOrderSnapshot = {
+        ...order,
+        orderId: 15,
+        type: DiaryType.SELL,
+      };
+      const sellRequest: PostDiariesDto = {
+        orderId: sellOrder.orderId,
+        type: DiaryType.SELL,
+        date: '2026-07-30',
+        sellReasonCode: SellReasonCode.GOAL_REACHED,
+        sellReasonDetail: '목표 가격에 도달하여 계획대로 매도했다.',
+        goalEvaluationCode: GoalEvaluationCode.KEPT_GOAL,
+        goalEvaluationDetail: '원칙을 지킨 거래였다.',
+        emotion: 2,
+        memo: '앞으로도 계획에 따라 매도할 것',
+      };
+      const sellCreated: CreateDiaryResponseDto = {
+        ...created,
+        orderId: sellOrder.orderId,
+        type: DiaryType.SELL,
+      };
+      createDiaryRepository.findOrderById.mockResolvedValue(sellOrder);
+      createDiaryRepository.createDiary.mockResolvedValue(sellCreated);
+
+      const result = await createDiary(sellRequest);
+
+      expect(createDiaryRepository.createDiary).toHaveBeenCalledWith(
+        userId,
+        expect.objectContaining(sellRequest),
+      );
+      expect(result).toEqual(sellCreated);
+    });
+
+    it('주문이 없으면 ORDER_NOT_FOUND를 던진다', async () => {
+      createDiaryRepository.findOrderById.mockResolvedValue(null);
+
+      await expectBusinessException(createDiary(buyRequest), 'ORDER_NOT_FOUND');
+      expect(createDiaryRepository.existsActiveDiary).not.toHaveBeenCalled();
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+
+    it('다른 사용자의 주문이면 존재 여부를 숨기고 ORDER_NOT_FOUND를 던진다', async () => {
+      createDiaryRepository.findOrderById.mockResolvedValue({
+        ...order,
+        userId: userId + 1,
+      });
+
+      await expectBusinessException(createDiary(buyRequest), 'ORDER_NOT_FOUND');
+      expect(createDiaryRepository.existsActiveDiary).not.toHaveBeenCalled();
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+
+    it('요청 type과 주문 유형이 다르면 ORDER_TYPE_MISMATCH를 던진다', async () => {
+      createDiaryRepository.findOrderById.mockResolvedValue({
+        ...order,
+        type: DiaryType.SELL,
+      });
+
+      await expectBusinessException(
+        createDiary(buyRequest),
+        'ORDER_TYPE_MISMATCH',
+      );
+      expect(createDiaryRepository.existsActiveDiary).not.toHaveBeenCalled();
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+
+    it('같은 주문의 활성 일기가 있으면 DIARY_ALREADY_EXISTS를 던진다', async () => {
+      createDiaryRepository.existsActiveDiary.mockResolvedValue(true);
+
+      await expectBusinessException(
+        createDiary(buyRequest),
+        'DIARY_ALREADY_EXISTS',
+      );
+      expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
   });
 });
 /*

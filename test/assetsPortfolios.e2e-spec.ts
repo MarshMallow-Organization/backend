@@ -23,6 +23,17 @@ interface PortfolioList {
   maxCount: number;
 }
 
+interface PortfolioNameUpdated {
+  id: number;
+  name: string;
+  updatedAt: string;
+}
+
+interface PortfolioDeleted {
+  id: number;
+  deleted: boolean;
+}
+
 interface ErrorBody {
   code: string;
   message: string;
@@ -64,6 +75,36 @@ describe('가상계좌 (assets/portfolios)', () => {
 
   const getPortfolios = (userId = TEST_USER_ID) =>
     request(app.getHttpServer()).get(PATH).set(asUser(userId));
+
+  const reorderPortfolios = (portfolioIds: number[], userId = TEST_USER_ID) =>
+    request(app.getHttpServer())
+      .patch(`${PATH}/order`)
+      .set(asUser(userId))
+      .send({ portfolioIds });
+
+  const renamePortfolio = (
+    portfolioId: number,
+    name: string,
+    userId = TEST_USER_ID,
+  ) =>
+    request(app.getHttpServer())
+      .patch(`${PATH}/${portfolioId}`)
+      .set(asUser(userId))
+      .send({ name });
+
+  const deletePortfolio = (portfolioId: number, userId = TEST_USER_ID) =>
+    request(app.getHttpServer())
+      .delete(`${PATH}/${portfolioId}`)
+      .set(asUser(userId));
+
+  /** 존재하지 않는 ID. 각 테스트가 만드는 계좌 수를 훨씬 넘는 값이면 된다. */
+  const MISSING_PORTFOLIO_ID = 999_999;
+
+  /** 응답 목록을 이름 배열로 줄인다. 순서 검증을 읽기 쉽게 만든다. */
+  const namesInOrder = (response: request.Response) =>
+    dataOf<PortfolioList>(response).portfolios.map(
+      (portfolio) => portfolio.name,
+    );
 
   describe('POST /assets/portfolios', () => {
     it('가상계좌를 생성하고 첫 sortOrder를 0으로 매긴다', async () => {
@@ -179,6 +220,329 @@ describe('가상계좌 (assets/portfolios)', () => {
       const response = await getPortfolios(OTHER_USER_ID).expect(200);
 
       expect(dataOf<PortfolioList>(response).portfolios).toEqual([]);
+    });
+  });
+
+  describe('PATCH /assets/portfolios/order', () => {
+    /** 이름 → id 로 만들어두면 순서를 이름으로 표현할 수 있어 읽기 쉽다. */
+    const createMany = async (names: string[], userId = TEST_USER_ID) => {
+      const ids: Record<string, number> = {};
+
+      for (const name of names) {
+        const response = await createPortfolio(name, userId).expect(201);
+        ids[name] = dataOf<PortfolioSummary>(response).id;
+      }
+
+      return ids;
+    };
+
+    it('요청 배열의 인덱스를 그대로 sortOrder로 재할당한다', async () => {
+      const ids = await createMany(['첫째', '둘째', '셋째']);
+
+      const response = await reorderPortfolios([
+        ids['셋째'],
+        ids['첫째'],
+        ids['둘째'],
+      ]).expect(200);
+
+      expect(
+        dataOf<PortfolioList>(response).portfolios.map((portfolio) => [
+          portfolio.name,
+          portfolio.sortOrder,
+        ]),
+      ).toEqual([
+        ['셋째', 0],
+        ['첫째', 1],
+        ['둘째', 2],
+      ]);
+    });
+
+    it('응답은 목록 조회와 같은 형태다', async () => {
+      const ids = await createMany(['첫째', '둘째']);
+
+      const response = await reorderPortfolios([
+        ids['둘째'],
+        ids['첫째'],
+      ]).expect(200);
+
+      /** 프론트가 재조회 없이 상태를 갱신할 수 있어야 하므로 maxCount도 온다. */
+      expect(dataOf<PortfolioList>(response).maxCount).toBe(4);
+    });
+
+    it('변경된 순서가 이후 목록 조회에도 반영된다', async () => {
+      const ids = await createMany(['첫째', '둘째']);
+
+      await reorderPortfolios([ids['둘째'], ids['첫째']]).expect(200);
+
+      expect(namesInOrder(await getPortfolios().expect(200))).toEqual([
+        '둘째',
+        '첫째',
+      ]);
+    });
+
+    it('ID가 중복되면 400 PORTFOLIO_ORDER_MISMATCH를 반환한다', async () => {
+      const ids = await createMany(['첫째', '둘째']);
+
+      const response = await reorderPortfolios([
+        ids['첫째'],
+        ids['첫째'],
+      ]).expect(400);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_ORDER_MISMATCH');
+    });
+
+    it('보유 계좌를 일부만 전달하면 400을 반환한다', async () => {
+      const ids = await createMany(['첫째', '둘째', '셋째']);
+
+      const response = await reorderPortfolios([ids['첫째']]).expect(400);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_ORDER_MISMATCH');
+    });
+
+    it('다른 사용자의 가상계좌 ID가 섞이면 400을 반환한다', async () => {
+      const mine = await createMany(['내 계좌'], TEST_USER_ID);
+      const others = await createMany(['남의 계좌'], OTHER_USER_ID);
+
+      const response = await reorderPortfolios([
+        mine['내 계좌'],
+        others['남의 계좌'],
+      ]).expect(400);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_ORDER_MISMATCH');
+    });
+
+    it('실패하면 기존 순서를 그대로 둔다', async () => {
+      const ids = await createMany(['첫째', '둘째']);
+
+      /** 개수가 어긋나므로 실패한다. 이때 첫째가 이미 갱신돼 있으면 안 된다. */
+      await reorderPortfolios([ids['둘째']]).expect(400);
+
+      expect(namesInOrder(await getPortfolios().expect(200))).toEqual([
+        '첫째',
+        '둘째',
+      ]);
+    });
+
+    it('빈 배열은 400 BAD_REQUEST를 반환한다', async () => {
+      await createPortfolio('첫째').expect(201);
+
+      const response = await reorderPortfolios([]).expect(400);
+
+      /** DTO 검증 단계에서 걸러지므로 도메인 코드가 아니다. */
+      expect(errorOf(response).code).toBe('BAD_REQUEST');
+    });
+
+    it('정수가 아닌 값이 섞이면 400 BAD_REQUEST를 반환한다', async () => {
+      await createPortfolio('첫째').expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`${PATH}/order`)
+        .set(asUser(TEST_USER_ID))
+        .send({ portfolioIds: ['abc'] })
+        .expect(400);
+
+      expect(errorOf(response).code).toBe('BAD_REQUEST');
+    });
+
+    it('다른 사용자의 순서에는 영향을 주지 않는다', async () => {
+      const mine = await createMany(['내 첫째', '내 둘째'], TEST_USER_ID);
+      await createMany(['남의 첫째', '남의 둘째'], OTHER_USER_ID);
+
+      await reorderPortfolios([mine['내 둘째'], mine['내 첫째']]).expect(200);
+
+      expect(
+        namesInOrder(await getPortfolios(OTHER_USER_ID).expect(200)),
+      ).toEqual(['남의 첫째', '남의 둘째']);
+    });
+  });
+
+  describe('PATCH /assets/portfolios/:portfolioId', () => {
+    const createOne = async (name: string, userId = TEST_USER_ID) =>
+      dataOf<PortfolioSummary>(await createPortfolio(name, userId).expect(201))
+        .id;
+
+    it('이름을 변경하고 id·name·updatedAt을 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      const response = await renamePortfolio(id, '공격형').expect(200);
+      const updated = dataOf<PortfolioNameUpdated>(response);
+
+      expect(updated).toMatchObject({ id, name: '공격형' });
+
+      /** 명세는 ISO 8601 문자열이다. Date 객체가 새어나가면 안 된다. */
+      expect(typeof updated.updatedAt).toBe('string');
+    });
+
+    it('sortOrder는 변경되지 않는다', async () => {
+      await createPortfolio('첫째').expect(201);
+      const id = await createOne('둘째');
+
+      await renamePortfolio(id, '둘째 개명').expect(200);
+
+      const listed = dataOf<PortfolioList>(
+        await getPortfolios().expect(200),
+      ).portfolios;
+
+      expect(
+        listed.map((portfolio) => [portfolio.name, portfolio.sortOrder]),
+      ).toEqual([
+        ['첫째', 0],
+        ['둘째 개명', 1],
+      ]);
+    });
+
+    it('이름 앞뒤 공백을 잘라내고 저장한다', async () => {
+      const id = await createOne('안전형');
+
+      const response = await renamePortfolio(id, '  공격형  ').expect(200);
+
+      expect(dataOf<PortfolioNameUpdated>(response).name).toBe('공격형');
+    });
+
+    it('같은 이름으로 다시 보내도 성공한다', async () => {
+      const id = await createOne('안전형');
+
+      /** 자기 자신은 중복이 아니다. 멱등해야 한다. */
+      await renamePortfolio(id, '안전형').expect(200);
+    });
+
+    it('다른 계좌가 쓰는 이름이면 409를 반환한다', async () => {
+      await createPortfolio('안전형').expect(201);
+      const id = await createOne('공격형');
+
+      const response = await renamePortfolio(id, '안전형').expect(409);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NAME_DUPLICATED');
+    });
+
+    it('없는 계좌면 404 PORTFOLIO_NOT_FOUND를 반환한다', async () => {
+      const response = await renamePortfolio(
+        MISSING_PORTFOLIO_ID,
+        '공격형',
+      ).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('다른 사용자의 계좌면 404를 반환한다', async () => {
+      const id = await createOne('남의 계좌', OTHER_USER_ID);
+
+      /** 403으로 나누면 남의 계좌 존재 여부가 드러난다. 404로 묶는다. */
+      const response = await renamePortfolio(
+        id,
+        '가로채기',
+        TEST_USER_ID,
+      ).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('공백만 있는 이름은 400을 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      await renamePortfolio(id, '   ').expect(400);
+    });
+
+    it('portfolioId가 정수가 아니면 400을 반환한다', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`${PATH}/abc`)
+        .set(asUser(TEST_USER_ID))
+        .send({ name: '공격형' })
+        .expect(400);
+
+      expect(errorOf(response).code).toBe('BAD_REQUEST');
+    });
+  });
+
+  describe('DELETE /assets/portfolios/:portfolioId', () => {
+    const createOne = async (name: string, userId = TEST_USER_ID) =>
+      dataOf<PortfolioSummary>(await createPortfolio(name, userId).expect(201))
+        .id;
+
+    it('삭제하고 id·deleted를 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      const response = await deletePortfolio(id).expect(200);
+
+      expect(dataOf<PortfolioDeleted>(response)).toEqual({ id, deleted: true });
+    });
+
+    it('삭제한 계좌는 목록에서 사라진다', async () => {
+      const id = await createOne('안전형');
+      await createPortfolio('공격형').expect(201);
+
+      await deletePortfolio(id).expect(200);
+
+      expect(namesInOrder(await getPortfolios().expect(200))).toEqual([
+        '공격형',
+      ]);
+    });
+
+    it('소속 종목이 있어도 삭제된다', async () => {
+      const id = await createOne('안전형');
+
+      await prisma.virtualPortfolioStock.create({
+        data: { virtualPortfolioId: id, stockCode: '005930' },
+      });
+
+      /** FK가 Restrict라 자식을 먼저 지우지 않으면 409가 난다. */
+      await deletePortfolio(id).expect(200);
+
+      await expect(
+        prisma.virtualPortfolioStock.count({
+          where: { virtualPortfolioId: id },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it('삭제 후 개수가 줄어 다시 생성할 수 있다', async () => {
+      /**
+       * 순차 생성이어야 한다. 동시에 만들면 개수 제한의 경쟁 상태
+       * (서비스 주석 참고)에 걸려 테스트가 간헐적으로 실패한다.
+       */
+      const first = await createOne('첫째');
+      for (const name of ['둘째', '셋째', '넷째']) {
+        await createPortfolio(name).expect(201);
+      }
+
+      await createPortfolio('다섯째').expect(409);
+
+      await deletePortfolio(first).expect(200);
+
+      await createPortfolio('다섯째').expect(201);
+    });
+
+    it('삭제한 이름은 다시 사용할 수 있다', async () => {
+      const id = await createOne('안전형');
+
+      await deletePortfolio(id).expect(200);
+
+      await createPortfolio('안전형').expect(201);
+    });
+
+    it('없는 계좌면 404 PORTFOLIO_NOT_FOUND를 반환한다', async () => {
+      const response = await deletePortfolio(MISSING_PORTFOLIO_ID).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('다른 사용자의 계좌면 404를 반환하고 지우지 않는다', async () => {
+      const id = await createOne('남의 계좌', OTHER_USER_ID);
+
+      await deletePortfolio(id, TEST_USER_ID).expect(404);
+
+      await expect(
+        prisma.virtualPortfolio.count({ where: { id } }),
+      ).resolves.toBe(1);
+    });
+
+    it('portfolioId가 정수가 아니면 400을 반환한다', async () => {
+      const response = await request(app.getHttpServer())
+        .delete(`${PATH}/abc`)
+        .set(asUser(TEST_USER_ID))
+        .expect(400);
+
+      expect(errorOf(response).code).toBe('BAD_REQUEST');
     });
   });
 });

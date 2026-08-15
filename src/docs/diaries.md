@@ -77,3 +77,21 @@
 조회 결과가 없으면 `items`는 빈 배열, `totalElements`와 `totalPages`는 `0`, `hasNext`는 `false`가 된다.
 
 각 일기 항목은 `diaryId`, `orderId`, 매수·매도 구분인 `type`, 거래일인 `date`, 종목 코드와 이름, 평균 가격, 수량, 메모, 생성 시각을 포함한다.
+
+## POST /diaries 개발 계획
+
+로그인한 사용자가 자신의 주문을 기준으로 BUY 또는 SELL 일기를 작성한다. 경로 ID는 없으며 `orderId`는 요청 본문으로 받는다.
+
+### 테스트 계획
+
+1. DTO 테스트: 공통 필수값, BUY/SELL 전용 필드, enum·길이·`emotion(1~5)`, CUSTOM 보유 기간을 검증한다.
+2. Service 테스트: 정상 BUY/SELL 생성과 서버 스냅샷 저장, 주문 미존재/타인 소유, 주문 유형 불일치, 활성 일기 중복을 검증한다.
+3. E2E 테스트: 성공 시 `201 Created` 응답과 `INVALID_DIARY_REQUEST`, `ORDER_NOT_FOUND`, `ORDER_TYPE_MISMATCH`, `DIARY_ALREADY_EXISTS` 오류를 검증한다.
+
+### 구현 순서
+
+1. `CreateDiaryDto`를 공통 필드와 BUY/SELL 구분 가능한 DTO로 정의하고 서버 관리 필드 입력을 차단한다.
+2. Notion 명세의 nullable/필수 조건과 Prisma 스키마를 맞추고, 활성 `userId + orderId`의 유일성을 DB에서 보장한다.
+3. Repository에 주문 조회와 일기·유형별 상세 생성을 하나의 트랜잭션으로 처리하는 포트를 추가한다.
+4. `DiariesService.createDiary`에서 소유권·주문 유형·중복을 검증하고 주문/시장 데이터로 스냅샷을 구성한다.
+5. Controller에 `@Post()`를 추가하고 생성 결과를 `201 Created`로 반환한 후 단위/E2E 테스트와 Swagger 명세를 완성한다.

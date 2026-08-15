@@ -1,4 +1,3 @@
-import { UsersModule } from './domains/users/users.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -12,7 +11,10 @@ import { HttpLoggingMiddleware } from './common/logger/httpLogging.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { ResponseInterceptor } from './global/interceptor/response.interceptor';
 import { AuthModule } from './domains/auth/auth.module';
+import { DiariesModule } from './domains/diaries/diaries.module';
 import { AssetsModule } from './domains/assets/assets.module';
+import { UsersModule } from './domains/users/users.module';
+import { OrdersModule } from './domains/orders/orders.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -22,10 +24,14 @@ const imports = [
   PrismaModule,
   /**Auth 인증 모듈 */
   AuthModule,
+  /** 매매 일기 모듈 */
+  DiariesModule,
   /** 자산(가상계좌) 모듈 */
   AssetsModule,
-  /** 사용자 모듈 */
+  /** 사용자(관심종목) 모듈 */
   UsersModule,
+  /** Orders 주문 모듈 */
+  OrdersModule,
 ];
 
 @Module({
