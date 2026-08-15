@@ -90,16 +90,36 @@ model OAuth {
   @@map("oauth")
 }
 
-model ProfilePic {
+model Image {
   id       Int    @id @default(autoincrement())
   imageUrl String
+
+  createdAt DateTime @default(now())
+
+  profilePic ProfilePic?
+  snapshot   Snapshot?
+
+  @@map("images")
+}
+
+model ProfilePic {
+  imageId Int   @id
+  image   Image @relation(fields: [imageId], references: [id])
 
   userId Int  @unique
   user   User @relation(fields: [userId], references: [id])
 
-  createdAt DateTime @default(now())
-
   @@map("profile_pics")
+}
+
+model Snapshot {
+  imageId Int   @id
+  image   Image @relation(fields: [imageId], references: [id])
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
+
+  @@map("snapshot")
 }
 
 model Trade {
@@ -141,16 +161,15 @@ enum GoalHoldPeriod {
 }
 
 model Diary {
-  id                    Int       @id @default(autoincrement())
-  type                  TradeType
-  date                  DateTime  @db.Date
-  corpCode              String    @db.VarChar(10)
-  corpName              String    @db.VarChar(100)
-  perAtOrder            Decimal?  @db.Decimal(15, 2)
-  pbrAtOrder            Decimal?  @db.Decimal(15, 2)
-  marketCapAtOrder      Decimal?  @db.Decimal(20, 2)
-  candleChartAtOrderUrl String?   @db.VarChar(2048)
-  deletedAt             DateTime?
+  id               Int       @id @default(autoincrement())
+  type             TradeType
+  date             DateTime  @db.Date
+  corpCode         String    @db.VarChar(10)
+  corpName         String    @db.VarChar(100)
+  perAtOrder       Decimal?  @db.Decimal(15, 2)
+  pbrAtOrder       Decimal?  @db.Decimal(15, 2)
+  marketCapAtOrder Decimal?  @db.Decimal(20, 2)
+  deletedAt        DateTime?
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
@@ -304,18 +323,17 @@ enum OrderCategory {
 model Order {
   id Int @id @default(autoincrement())
 
-  orderType             OrderType     @default(MARKET)
-  orderCategory         OrderCategory @default(GENERAL)
-  tradeType             TradeType
-  quantity              Int
-  price                 Decimal?      @db.Decimal(15, 2)
-  status                OrderStatus   @default(PENDING)
-  corpCode              String        @db.VarChar(10)
-  corpName              String        @db.VarChar(100)
-  perAtOrder            Decimal?      @db.Decimal(15, 2)
-  pbrAtOrder            Decimal?      @db.Decimal(15, 2)
-  marketCapAtOrder      Decimal?      @db.Decimal(20, 2)
-  candleChartAtOrderUrl String?       @db.VarChar(2048)
+  orderType        OrderType     @default(MARKET)
+  orderCategory    OrderCategory @default(GENERAL)
+  tradeType        TradeType
+  quantity         Int
+  price            Decimal?      @db.Decimal(15, 2)
+  status           OrderStatus   @default(PENDING)
+  corpCode         String        @db.VarChar(10)
+  corpName         String        @db.VarChar(100)
+  perAtOrder       Decimal?      @db.Decimal(15, 2)
+  pbrAtOrder       Decimal?      @db.Decimal(15, 2)
+  marketCapAtOrder Decimal?      @db.Decimal(20, 2)
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
@@ -326,6 +344,7 @@ model Order {
   trades         Trade[]
   diaries        Diary[]
   orderCondition OrderCondition?
+  snapshot       Snapshot?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
