@@ -237,10 +237,10 @@ describe('DiariesService', () => {
       type: DiaryType.BUY,
       corpCode: '005930',
       corpName: '삼성전자',
-      perAtTrade: 12.4,
-      pbrAtTrade: 1.1,
-      marketCapAtTrade: 430_000_000_000_000,
-      candelChartAtUrl: 'https://example.com/charts/005930.png',
+      perAtOrder: 12.4,
+      pbrAtOrder: 1.1,
+      marketCapAtOrder: 430_000_000_000_000,
+      candleChartAtOrderUrl: 'https://example.com/charts/005930.png',
     };
     const buyRequest: PostDiariesDto = {
       orderId: order.orderId,
@@ -285,10 +285,10 @@ describe('DiariesService', () => {
         ...buyRequest,
         corpCode: order.corpCode,
         corpName: order.corpName,
-        perAtTrade: order.perAtTrade,
-        pbrAtTrade: order.pbrAtTrade,
-        marketCapAtTrade: order.marketCapAtTrade,
-        candelChartAtUrl: order.candelChartAtUrl,
+        perAtOrder: order.perAtOrder,
+        pbrAtOrder: order.pbrAtOrder,
+        marketCapAtOrder: order.marketCapAtOrder,
+        candleChartAtOrderUrl: order.candleChartAtOrderUrl,
       });
       expect(result).toEqual(created);
     });
