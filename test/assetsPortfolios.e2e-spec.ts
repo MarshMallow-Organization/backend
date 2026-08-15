@@ -46,6 +46,26 @@ interface PortfolioStockRemoved {
   removed: boolean;
 }
 
+interface Holding {
+  stockCode: string;
+  stockName: string;
+  quantity: number;
+  avgBuyPrice: number;
+  currentPrice: number;
+  evaluationAmount: number;
+  unrealizedProfit: number;
+  returnRate: number;
+}
+
+interface PortfolioDetail {
+  id: number;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  totalReturnRate: number;
+  holdings: Holding[];
+}
+
 interface ErrorBody {
   code: string;
   message: string;
@@ -126,6 +146,11 @@ describe('가상계좌 (assets/portfolios)', () => {
   ) =>
     request(app.getHttpServer())
       .delete(`${PATH}/${portfolioId}/stocks/${stockCode}`)
+      .set(asUser(userId));
+
+  const getPortfolioDetail = (portfolioId: number, userId = TEST_USER_ID) =>
+    request(app.getHttpServer())
+      .get(`${PATH}/${portfolioId}`)
       .set(asUser(userId));
 
   /** 존재하지 않는 ID. 각 테스트가 만드는 계좌 수를 훨씬 넘는 값이면 된다. */
@@ -736,6 +761,193 @@ describe('가상계좌 (assets/portfolios)', () => {
 
       await removeStock(id, 'AAPL').expect(400);
       await removeStock(id, '00593').expect(400);
+    });
+  });
+
+  describe('GET /assets/portfolios/:portfolioId', () => {
+    /** HoldingsProvider stub에 들어 있는 종목. */
+    const SAMSUNG = '005930';
+    const HYNIX = '000660';
+    const KAKAO = '035720';
+
+    /** stub에 있지만 전량 매도(수량 0)로 들어 있는 종목. */
+    const SOLD_OUT = '373220';
+
+    /** stub에 아예 없는 종목. 형식은 유효하다. */
+    const NOT_HELD = '123456';
+
+    const createOne = async (name: string, userId = TEST_USER_ID) =>
+      dataOf<PortfolioSummary>(await createPortfolio(name, userId).expect(201))
+        .id;
+
+    it('계좌 정보와 보유 종목을 함께 반환한다', async () => {
+      const id = await createOne('안전형 투자');
+      await addStock(id, SAMSUNG).expect(201);
+      await addStock(id, HYNIX).expect(201);
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      expect(detail).toMatchObject({
+        id,
+        name: '안전형 투자',
+        sortOrder: 0,
+        totalReturnRate: 8.2,
+      });
+      expect(detail.holdings).toEqual([
+        {
+          stockCode: SAMSUNG,
+          stockName: '삼성전자',
+          quantity: 30,
+          avgBuyPrice: 68000,
+          currentPrice: 72500,
+          evaluationAmount: 2_175_000,
+          unrealizedProfit: 135_000,
+          returnRate: 6.62,
+        },
+        {
+          stockCode: HYNIX,
+          stockName: 'SK하이닉스',
+          quantity: 10,
+          avgBuyPrice: 180000,
+          currentPrice: 198000,
+          evaluationAmount: 1_980_000,
+          unrealizedProfit: 180_000,
+          returnRate: 10,
+        },
+      ]);
+    });
+
+    it('등록된 종목이 없으면 빈 holdings와 0을 반환한다', async () => {
+      const id = await createOne('공격형 투자');
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      expect(detail.holdings).toEqual([]);
+      expect(detail.totalReturnRate).toBe(0);
+    });
+
+    it('등록했지만 보유하지 않는 종목은 빠진다', async () => {
+      const id = await createOne('안전형');
+      await addStock(id, SAMSUNG).expect(201);
+      await addStock(id, NOT_HELD).expect(201);
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      expect(detail.holdings.map((holding) => holding.stockCode)).toEqual([
+        SAMSUNG,
+      ]);
+    });
+
+    /** 전량 매도해도 등록은 남는다. 재매수하면 별도 조작 없이 다시 나온다. */
+    it('수량이 0인 종목은 빠진다', async () => {
+      const id = await createOne('안전형');
+      await addStock(id, SOLD_OUT).expect(201);
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      expect(detail.holdings).toEqual([]);
+      expect(detail.totalReturnRate).toBe(0);
+
+      /** 응답에서만 빠졌을 뿐 등록 자체는 남아 있어야 한다. */
+      await expect(prisma.virtualPortfolioStock.count()).resolves.toBe(1);
+    });
+
+    it('손실 종목은 unrealizedProfit과 returnRate가 음수다', async () => {
+      const id = await createOne('공격형');
+      await addStock(id, KAKAO).expect(201);
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      /** 평균단가가 정수가 아니어도 파생값은 정수로 반올림된다. */
+      expect(detail.holdings[0]).toMatchObject({
+        avgBuyPrice: 48500.4,
+        evaluationAmount: 206_000,
+        unrealizedProfit: -36_502,
+        returnRate: -15.05,
+      });
+      expect(detail.totalReturnRate).toBe(-15.05);
+    });
+
+    /**
+     * 삼성전자(+6.62%)와 카카오(-15.05%)의 단순평균은 -4.22로 음수지만,
+     * 투입 금액이 8배 넘게 차이 나 금액가중으로는 +4.32다.
+     */
+    it('totalReturnRate는 단순평균이 아니라 금액가중이다', async () => {
+      const id = await createOne('혼합형');
+      await addStock(id, SAMSUNG).expect(201);
+      await addStock(id, KAKAO).expect(201);
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      expect(detail.totalReturnRate).toBe(4.32);
+    });
+
+    it('다른 계좌의 종목은 섞이지 않는다', async () => {
+      const first = await createOne('안전형');
+      const second = await createOne('공격형');
+      await addStock(first, SAMSUNG).expect(201);
+      await addStock(second, HYNIX).expect(201);
+
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(first).expect(200),
+      );
+
+      expect(detail.holdings.map((holding) => holding.stockCode)).toEqual([
+        SAMSUNG,
+      ]);
+    });
+
+    it('sortOrder와 createdAt은 목록 조회와 같은 값이다', async () => {
+      await createOne('첫째');
+      const id = await createOne('둘째');
+
+      const listed = dataOf<PortfolioList>(
+        await getPortfolios().expect(200),
+      ).portfolios.find((portfolio) => portfolio.id === id);
+      const detail = dataOf<PortfolioDetail>(
+        await getPortfolioDetail(id).expect(200),
+      );
+
+      expect(detail).toMatchObject({
+        id,
+        name: listed?.name,
+        sortOrder: listed?.sortOrder,
+        createdAt: listed?.createdAt,
+      });
+    });
+
+    it('없는 계좌면 404 PORTFOLIO_NOT_FOUND를 반환한다', async () => {
+      const response =
+        await getPortfolioDetail(MISSING_PORTFOLIO_ID).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('다른 사용자의 계좌면 404를 반환한다', async () => {
+      const id = await createOne('남의 계좌', OTHER_USER_ID);
+
+      const response = await getPortfolioDetail(id, TEST_USER_ID).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('portfolioId가 정수가 아니면 400을 반환한다', async () => {
+      await request(app.getHttpServer())
+        .get(`${PATH}/abc`)
+        .set(asUser(TEST_USER_ID))
+        .expect(400);
     });
   });
 });
