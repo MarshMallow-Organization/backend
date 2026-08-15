@@ -726,5 +726,16 @@ describe('가상계좌 (assets/portfolios)', () => {
       expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
       await expect(prisma.virtualPortfolioStock.count()).resolves.toBe(1);
     });
+
+    /**
+     * 형식 오류는 400이다. 경로 파라미터라 전역 ValidationPipe가 보지
+     * 않으므로 ParseStockCodePipe가 없으면 '없는 종목' 404로 새어 나간다.
+     */
+    it('6자리 숫자가 아닌 종목 코드는 400을 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      await removeStock(id, 'AAPL').expect(400);
+      await removeStock(id, '00593').expect(400);
+    });
   });
 });

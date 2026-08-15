@@ -12,6 +12,7 @@ import {
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
+import { ParseStockCodePipe } from 'src/common/pipe/parseStockCode.pipe';
 import { AddPortfolioStockDto } from '../dto/request/add-portfolio-stock.dto';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
@@ -99,15 +100,18 @@ export class PortfoliosController {
   }
 
   /**
-   * stockCode는 본문이 아니라 경로에 있어 ValidationPipe가 형식을 보지
-   * 않는다. 6자리 숫자가 아니면 조회에 걸리지 않아 PORTFOLIO_STOCK_NOT_FOUND
-   * 404가 나가므로, 별도 파이프 없이 서비스 판정에 맡긴다.
+   * stockCode는 본문이 아니라 경로에 있어 전역 ValidationPipe가 형식을
+   * 보지 않는다. 그대로 두면 형식이 틀린 코드가 '조회했더니 없더라'로
+   * 흘러 404가 되는데, 명세는 형식 오류를 400으로 요구한다.
+   *
+   * 관심종목 쪽과 같은 ParseStockCodePipe를 쓴다. 그 파이프가 도메인이
+   * 아니라 common에 있는 이유가 이 핸들러다.
    */
   @Delete(':portfolioId/stocks/:stockCode')
   removeStock(
     @CurrentUser() user: AuthUser,
     @Param('portfolioId', ParseIntPipe) portfolioId: number,
-    @Param('stockCode') stockCode: string,
+    @Param('stockCode', ParseStockCodePipe) stockCode: string,
   ): Promise<PortfolioStockRemovedDto> {
     return this.portfoliosService.removeStock(user.id, portfolioId, stockCode);
   }
