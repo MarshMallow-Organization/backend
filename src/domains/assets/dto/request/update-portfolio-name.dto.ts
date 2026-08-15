@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
@@ -19,6 +20,13 @@ export class UpdatePortfolioNameDto {
    * IsNotEmpty를 통과하고, '안전형'과 '안전형 '이 다른 이름으로 취급돼
    * 중복 검사가 뚫린다.
    */
+  @ApiProperty({
+    description:
+      '변경할 가상계좌 이름. 사용자 내에서 유일해야 한다. 앞뒤 공백은 서버가 잘라낸 뒤 검증한다.',
+    minLength: 1,
+    maxLength: NAME_MAX_LENGTH,
+    example: '공격형',
+  })
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
