@@ -40,4 +40,7 @@ export default () => ({
   cors: {
     origin: process.env.FRONTEND_ORIGIN,
   },
+  toss: {
+    accessToken: process.env.TOSS_ACCESS_TOKEN,
+  },
 });

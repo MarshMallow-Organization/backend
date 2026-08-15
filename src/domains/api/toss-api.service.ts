@@ -12,7 +12,7 @@ export class TossApiService {
     accessToken을 쓰는 이유
     토큰을 실제로 코드에 입력하면 안되므로 accessToken으로 받아옴
     */
-    const accessToken = this.configService.get<string>('TOSS_ACCESS_TOKEN');
+    const accessToken = this.configService.get<string>('toss.accessToken');
 
     const response = await fetch(
       `https://openapi.tossinvest.com/api/v1/stocks?symbols=${stockCode}`,
@@ -34,6 +34,6 @@ export class TossApiService {
   }
 
   async getRanking() {
-    // 토스 랭킹 API
+    // 토스 랭킹 API (구현예정)
   }
 }
