@@ -26,4 +26,7 @@ export class GetOrdersQueryDto {
   @IsOptional()
   @IsEnum(TradeType)
   tradeType?: TradeType;
+
+  @IsOptional()
+  corpCode?: string;
 }

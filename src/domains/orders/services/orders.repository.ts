@@ -17,6 +17,12 @@ export class OrdersRepository {
         orderType: dto.orderType,
         orderCategory: dto.orderCategory,
         tradeType: dto.tradeType,
+        corpCode: dto.corpCode,
+        corpName: dto.corpName,
+        perAtOrder: dto.perAtOrder !== undefined ? dto.perAtOrder : null,
+        pbrAtOrder: dto.pbrAtOrder !== undefined ? dto.pbrAtOrder : null,
+        marketCapAtOrder:
+          dto.marketCapAtOrder !== undefined ? dto.marketCapAtOrder : null,
         quantity: dto.quantity !== undefined ? dto.quantity : 1,
         price: dto.price !== undefined ? dto.price : null,
         userId: userId,
@@ -33,6 +39,11 @@ export class OrdersRepository {
       },
       include: {
         orderCondition: true,
+        snapshot: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
   }
@@ -45,12 +56,18 @@ export class OrdersRepository {
       ...(query.orderCategory && { orderCategory: query.orderCategory }),
       ...(query.orderType && { orderType: query.orderType }),
       ...(query.tradeType && { tradeType: query.tradeType }),
+      ...(query.corpCode && { corpCode: query.corpCode }),
     };
 
     return await this.prisma.order.findMany({
       where,
       include: {
         orderCondition: true,
+        snapshot: {
+          include: {
+            image: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -64,6 +81,11 @@ export class OrdersRepository {
       where: { id, userId },
       include: {
         orderCondition: true,
+        snapshot: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
   }
@@ -73,6 +95,13 @@ export class OrdersRepository {
     return await this.prisma.order.update({
       where: { id },
       data: {
+        ...(dto.corpCode !== undefined && { corpCode: dto.corpCode }),
+        ...(dto.corpName !== undefined && { corpName: dto.corpName }),
+        ...(dto.perAtOrder !== undefined && { perAtOrder: dto.perAtOrder }),
+        ...(dto.pbrAtOrder !== undefined && { pbrAtOrder: dto.pbrAtOrder }),
+        ...(dto.marketCapAtOrder !== undefined && {
+          marketCapAtOrder: dto.marketCapAtOrder,
+        }),
         ...(dto.quantity !== undefined && { quantity: dto.quantity }),
         ...(dto.price !== undefined && { price: dto.price }),
         ...(dto.orderCondition && {
@@ -90,6 +119,11 @@ export class OrdersRepository {
       },
       include: {
         orderCondition: true,
+        snapshot: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
   }
@@ -103,6 +137,11 @@ export class OrdersRepository {
       },
       include: {
         orderCondition: true,
+        snapshot: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
   }

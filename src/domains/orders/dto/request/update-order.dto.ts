@@ -25,6 +25,35 @@ export class UpdateOrderConditionDto {
 
 export class UpdateOrderDto {
   @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  corpCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  corpName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  perAtOrder?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  pbrAtOrder?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  marketCapAtOrder?: number;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
