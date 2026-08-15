@@ -21,7 +21,9 @@ export class CreateOrderConditionDto {
   triggerPrice: number;
 
   @IsString()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   expiredAt: string;
 }
 
@@ -39,8 +41,8 @@ export class CreateOrderDto {
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  @Transform(({ value }) =>
-    value === '' || value === null ? undefined : value,
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined ? undefined : value,
   )
   quantity?: number;
 
@@ -48,8 +50,9 @@ export class CreateOrderDto {
   @IsNumber()
   @Min(0)
   @Type(() => Number)
-  @Transform(({ value }) =>
-    (value === '' || value === null ? undefined : value))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined ? undefined : value,
+  )
   price?: number;
 
   @IsInt()
@@ -59,6 +62,10 @@ export class CreateOrderDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateOrderConditionDto)
-  @Transform(({ value }) => (value && Object.keys(value).length > 0 ? value : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value && typeof value === 'object' && Object.keys(value).length > 0
+      ? value
+      : undefined,
+  )
   orderCondition?: CreateOrderConditionDto;
 }
