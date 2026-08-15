@@ -14,6 +14,7 @@ import { AuthModule } from './domains/auth/auth.module';
 import { DiariesModule } from './domains/diaries/diaries.module';
 import { AssetsModule } from './domains/assets/assets.module';
 import { UsersModule } from './domains/users/users.module';
+import { OrdersModule } from './domains/orders/orders.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -29,6 +30,8 @@ const imports = [
   AssetsModule,
   /** 사용자(관심종목) 모듈 */
   UsersModule,
+  /** Orders 주문 모듈 */
+  OrdersModule,
 ];
 
 @Module({
