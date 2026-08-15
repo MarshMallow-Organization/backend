@@ -132,7 +132,57 @@ describe('관심종목 (users/me/favorite-stocks)', () => {
     it('중복은 사용자별로 판정한다', async () => {
       await addFavorite(SAMSUNG, TEST_USER_ID).expect(201);
 
+      /** 남이 담았다고 내가 못 담으면 안 된다. 409가 나면 유니크가 잘못 걸린 것. */
       await addFavorite(SAMSUNG, OTHER_USER_ID).expect(201);
+
+      /** 둘 다 살아남아야 한다. 하나가 갈아치워지면 여기서 걸린다. */
+      const rows = await prisma.favoriteStock.findMany({
+        where: { stockCode: SAMSUNG.stockCode },
+        orderBy: { userId: 'asc' },
+        select: { id: true, userId: true },
+      });
+
+      expect(rows.map((row) => row.userId)).toEqual([
+        TEST_USER_ID,
+        OTHER_USER_ID,
+      ]);
+      expect(new Set(rows.map((row) => row.id)).size).toBe(2);
+    });
+
+    it('같은 종목을 담은 사용자가 둘이어도 목록은 각자 것만 보인다', async () => {
+      await addFavorite(SAMSUNG, TEST_USER_ID).expect(201);
+      await addFavorite(SAMSUNG, OTHER_USER_ID).expect(201);
+      await addFavorite(HYNIX, OTHER_USER_ID).expect(201);
+
+      const mine = await getFavorites(TEST_USER_ID).expect(200);
+      const others = await getFavorites(OTHER_USER_ID).expect(200);
+
+      expect(
+        dataOf<FavoriteStockList>(mine).favoriteStocks.map((i) => i.stockCode),
+      ).toEqual([SAMSUNG.stockCode]);
+      expect(
+        dataOf<FavoriteStockList>(others).favoriteStocks.map(
+          (i) => i.stockCode,
+        ),
+      ).toEqual([HYNIX.stockCode, SAMSUNG.stockCode]);
+    });
+
+    it('한 사용자가 해제해도 다른 사용자의 같은 종목은 남는다', async () => {
+      await addFavorite(SAMSUNG, TEST_USER_ID).expect(201);
+      await addFavorite(SAMSUNG, OTHER_USER_ID).expect(201);
+
+      await removeFavorite(SAMSUNG.stockCode, TEST_USER_ID).expect(200);
+
+      /** deleteMany의 where에 userId가 빠지면 둘 다 지워진다. */
+      const remaining = await prisma.favoriteStock.findMany({
+        where: { stockCode: SAMSUNG.stockCode },
+        select: { userId: true },
+      });
+
+      expect(remaining.map((row) => row.userId)).toEqual([OTHER_USER_ID]);
+      await expect(
+        getStatus(SAMSUNG.stockCode, OTHER_USER_ID).expect(200),
+      ).resolves.toBeDefined();
     });
 
     it.each([
