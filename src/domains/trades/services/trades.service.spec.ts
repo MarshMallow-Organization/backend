@@ -15,7 +15,6 @@ describe('TradesService', () => {
     findAll: jest.fn(),
     findById: jest.fn(),
     findByExternalTradeId: jest.fn(),
-    delete: jest.fn(),
   };
 
   const sampleTradeEntity = {
@@ -151,27 +150,6 @@ describe('TradesService', () => {
 
       expect(result.id).toBe('100');
       expect(result.corpCode).toBe('005930');
-    });
-  });
-
-  describe('deleteTrade', () => {
-    it('유효하지 않은 BigInt 문자열이면 TRADE_NOT_FOUND 예외를 던진다', async () => {
-      await expect(service.deleteTrade('invalid-id', 1)).rejects.toThrow(
-        new BusinessException(TradesErrorCode.TRADE_NOT_FOUND),
-      );
-    });
-
-    it('체결 내역이 존재하면 정상 삭제되고 deleted: true를 반환한다', async () => {
-      mockTradesRepository.delete.mockResolvedValue({
-        id: '100',
-        deleted: true,
-      });
-
-      const result = await service.deleteTrade('100', 1);
-
-      expect(result.id).toBe('100');
-      expect(result.deleted).toBe(true);
-      expect(mockTradesRepository.delete).toHaveBeenCalledWith(100n, 1);
     });
   });
 });

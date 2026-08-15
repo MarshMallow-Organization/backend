@@ -104,26 +104,4 @@ export class TradesRepository {
       where: { externalTradeId },
     });
   }
-
-  // 5. 체결 내역 삭제
-  async delete(id: bigint, userId: number) {
-    return await this.prisma.$transaction(async (tx) => {
-      const trade = await tx.trade.findFirst({
-        where: { id, userId },
-      });
-
-      if (!trade) {
-        throw new BusinessException(TradesErrorCode.TRADE_NOT_FOUND);
-      }
-
-      await tx.trade.delete({
-        where: { id },
-      });
-
-      return {
-        id: trade.id.toString(),
-        deleted: true,
-      };
-    });
-  }
 }

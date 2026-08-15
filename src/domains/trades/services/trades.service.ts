@@ -3,7 +3,6 @@ import { CreateTradeDto } from '../dto/request/create-trade.dto';
 import { GetTradesQueryDto } from '../dto/request/get-trades-query.dto';
 import { TradeResponseDto } from '../dto/response/trade-response.dto';
 import { TradeListResponseDto } from '../dto/response/trade-list-response.dto';
-import { TradeDeletedResponseDto } from '../dto/response/trade-deleted-response.dto';
 import { BusinessException } from 'src/common/exception/businessException';
 import { TradesErrorCode } from '../errors/trades.error';
 import { TradesRepository } from './trades.repository';
@@ -65,20 +64,5 @@ export class TradesService {
     }
 
     return TradeResponseDto.from(trade);
-  }
-
-  // 4. 체결 내역 삭제
-  async deleteTrade(
-    idStr: string,
-    userId: number,
-  ): Promise<TradeDeletedResponseDto> {
-    let id: bigint;
-    try {
-      id = BigInt(idStr);
-    } catch {
-      throw new BusinessException(TradesErrorCode.TRADE_NOT_FOUND);
-    }
-
-    return await this.tradesRepository.delete(id, userId);
   }
 }
