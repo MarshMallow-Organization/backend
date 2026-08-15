@@ -10,7 +10,9 @@ import {
 export class GetOrdersQueryDto {
   @IsOptional()
   @IsEnum(OrderStatus)
-  @Transform(({ value }) => (value ? value : OrderStatus.PENDING))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? value : OrderStatus.PENDING,
+  )
   status?: OrderStatus;
 
   @IsOptional()

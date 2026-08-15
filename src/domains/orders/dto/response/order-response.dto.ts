@@ -1,3 +1,4 @@
+import { Order, OrderCondition } from 'src/generated/prisma/client';
 import {
   OrderCategory,
   OrderStatus,
@@ -10,7 +11,9 @@ export class OrderConditionResponseDto {
   triggerPrice: number;
   expiredAt: Date;
 
-  static from(entity: any): OrderConditionResponseDto | null {
+  static from(
+    entity: OrderCondition | null | undefined,
+  ): OrderConditionResponseDto | null {
     if (!entity) return null;
     const dto = new OrderConditionResponseDto();
     dto.id = entity.id;
@@ -20,19 +23,23 @@ export class OrderConditionResponseDto {
   }
 }
 
+export type OrderEntity = Order & {
+  orderCondition?: OrderCondition | null;
+};
+
 export class OrderResponseDto {
   id: number;
   orderType: OrderType;
   orderCategory: OrderCategory;
   tradeType: TradeType;
   quantity: number;
-  price: number | null; //지정가만 필수, 시장가는 null
+  price: number | null; // 지정가만 필수, 시장가는 null
   status: OrderStatus;
   currenciesId: number;
   createdAt: Date;
   orderCondition?: OrderConditionResponseDto | null;
 
-  static from(entity: any): OrderResponseDto {
+  static from(entity: OrderEntity): OrderResponseDto {
     const dto = new OrderResponseDto();
     dto.id = entity.id;
     dto.orderType = entity.orderType;
