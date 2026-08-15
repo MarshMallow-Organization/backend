@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { BusinessException } from '../../../common/exception/businessException';
-import { DiariesErrorCode } from '../diaries.error';
+import { DiariesErrorCode } from '../error/diaries.error';
 import {
   DIARY_MAX_SIZE,
   GetDiariesQueryDto,
 } from '../dto/request/get-diaries-query.dto';
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
-import { DiariesRepository, DiaryPageCriteria } from './diaries.repository';
+import { PostDiariesDto } from '../dto/request/post-diaries.dto';
+import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
+import { CreateDiaryCommand } from '../models/create-diary-command.model';
+import { DiaryPageCriteria } from '../models/diary-page.model';
+import { DiariesRepository } from '../repositories/diaries.repository';
 
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 10;
@@ -49,6 +53,53 @@ export class DiariesService {
       totalPages,
       hasNext: page + 1 < totalPages,
     };
+  }
+
+  async createDiary(
+    userId: number,
+    request: PostDiariesDto,
+  ): Promise<CreateDiaryResponseDto> {
+    const order = await this.diariesRepository.findOrderById(request.orderId);
+
+    // 타인의 주문도 존재 여부를 노출하지 않도록 미존재 주문과 동일하게 처리한다.
+    if (order === null || order.userId !== userId) {
+      throw new BusinessException(DiariesErrorCode.ORDER_NOT_FOUND, {
+        userId,
+        orderId: request.orderId,
+      });
+    }
+
+    if (order.type !== request.type) {
+      throw new BusinessException(DiariesErrorCode.ORDER_TYPE_MISMATCH, {
+        orderId: request.orderId,
+        orderType: order.type,
+        diaryType: request.type,
+      });
+    }
+
+    const alreadyExists = await this.diariesRepository.existsActiveDiary(
+      userId,
+      request.orderId,
+    );
+
+    if (alreadyExists) {
+      throw new BusinessException(DiariesErrorCode.DIARY_ALREADY_EXISTS, {
+        userId,
+        orderId: request.orderId,
+      });
+    }
+
+    const command = {
+      ...request,
+      corpCode: order.corpCode,
+      corpName: order.corpName,
+      perAtTrade: order.perAtTrade,
+      pbrAtTrade: order.pbrAtTrade,
+      marketCapAtTrade: order.marketCapAtTrade,
+      candelChartAtUrl: order.candelChartAtUrl,
+    } as CreateDiaryCommand;
+
+    return this.diariesRepository.createDiary(userId, command);
   }
 
   private validatePagination(page: number, size: number): void {
