@@ -6,6 +6,7 @@ import { CreateDiaryResponseDto } from './dto/response/create-diary-response.dto
 import { DiaryOrderSnapshot } from './models/diary-order-snapshot.model';
 import { DiaryPageResult } from './models/diary-page.model';
 import { DiaryDetailResponseDto } from './dto/response/diary-detail-response.dto';
+import { DiaryPrefillSnapshot } from './models/diary-prefill-snapshot.model';
 
 class DiariesRepositoryStub extends DiariesRepository {
   private notImplemented(): never {
@@ -31,6 +32,10 @@ class DiariesRepositoryStub extends DiariesRepository {
   }
 
   findDetailById(): Promise<DiaryDetailResponseDto | null> {
+    return this.notImplemented();
+  }
+
+  findPrefillByOrderId(): Promise<DiaryPrefillSnapshot | null> {
     return this.notImplemented();
   }
 }

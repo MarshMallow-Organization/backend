@@ -2,6 +2,11 @@ import { HttpStatus } from '@nestjs/common';
 import { defineErrorCodes } from '../../../common/exception/errorDefinition';
 
 export const DiariesErrorCode = defineErrorCodes({
+  INVALID_ORDER_ID: {
+    code: 'INVALID_ORDER_ID',
+    status: HttpStatus.BAD_REQUEST,
+    message: '주문 ID 형식이 올바르지 않습니다.',
+  },
   INVALID_DIARY_ID: {
     code: 'INVALID_DIARY_ID',
     status: HttpStatus.BAD_REQUEST,
