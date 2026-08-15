@@ -7,6 +7,6 @@ export class DiaryPreviewDto {
   corpName: string;
   avgPrice: number | null;
   quantity: number;
-  memo: string;
+  memo: string | null;
   createdAt: string;
 }

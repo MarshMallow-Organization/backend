@@ -176,7 +176,7 @@ export class PostDiariesDto {
     description:
       '직접 입력한 목표 보유 기간. goalHoldPeriod가 CUSTOM이면 필수이다.',
     example: '45일',
-    maxLength: 50,
+    maxLength: 255,
   })
   @ValidateIf(
     (request: PostDiariesDto) =>
@@ -186,7 +186,7 @@ export class PostDiariesDto {
   @IsDefined()
   @IsString()
   @IsNotEmpty()
-  @MaxLength(50)
+  @MaxLength(255)
   customGoalHoldPeriod?: string;
 
   @ApiPropertyOptional({
@@ -202,12 +202,12 @@ export class PostDiariesDto {
   @ApiPropertyOptional({
     description: '매도 이유 상세. SELL 일기에만 사용할 수 있다.',
     example: '목표 가격에 도달하여 계획대로 매도했습니다.',
-    maxLength: 100,
+    maxLength: 191,
   })
   @ValidateIf((request: PostDiariesDto) => request.type === DiaryType.SELL)
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(191)
   sellReasonDetail?: string;
 
   @ApiPropertyOptional({
@@ -223,12 +223,12 @@ export class PostDiariesDto {
   @ApiPropertyOptional({
     description: '목표 대비 평가 상세. SELL 일기에만 사용할 수 있다.',
     example: '원칙을 지킨 거래였습니다.',
-    maxLength: 100,
+    maxLength: 191,
   })
   @ValidateIf((request: PostDiariesDto) => request.type === DiaryType.SELL)
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(191)
   goalEvaluationDetail?: string;
 
   @ApiPropertyOptional({

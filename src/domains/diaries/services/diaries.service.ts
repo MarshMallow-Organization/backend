@@ -93,10 +93,10 @@ export class DiariesService {
       ...request,
       corpCode: order.corpCode,
       corpName: order.corpName,
-      perAtTrade: order.perAtTrade,
-      pbrAtTrade: order.pbrAtTrade,
-      marketCapAtTrade: order.marketCapAtTrade,
-      candelChartAtUrl: order.candelChartAtUrl,
+      perAtOrder: order.perAtOrder,
+      pbrAtOrder: order.pbrAtOrder,
+      marketCapAtOrder: order.marketCapAtOrder,
+      candleChartAtOrderUrl: order.candleChartAtOrderUrl,
     } as CreateDiaryCommand;
 
     return this.diariesRepository.createDiary(userId, command);

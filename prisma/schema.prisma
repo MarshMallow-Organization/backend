@@ -141,21 +141,21 @@ enum GoalHoldPeriod {
 }
 
 model Diary {
-  id               Int       @id @default(autoincrement())
-  type             TradeType
-  date             DateTime  @db.Date
-  corpCode         String
-  corpName         String
-  perAtTrade       Decimal?  @db.Decimal(15, 2)
-  pbrAtTrade       Decimal?  @db.Decimal(15, 2)
-  marketCapAtTrade Decimal?  @db.Decimal(20, 2)
-  candelChartAtUrl String?   @db.VarChar(2048)
-  deletedAt        DateTime?
+  id                    Int       @id @default(autoincrement())
+  type                  TradeType
+  date                  DateTime  @db.Date
+  corpCode              String    @db.VarChar(10)
+  corpName              String    @db.VarChar(100)
+  perAtOrder            Decimal?  @db.Decimal(15, 2)
+  pbrAtOrder            Decimal?  @db.Decimal(15, 2)
+  marketCapAtOrder      Decimal?  @db.Decimal(20, 2)
+  candleChartAtOrderUrl String?   @db.VarChar(2048)
+  deletedAt             DateTime?
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
 
-  orderId Int   @unique
+  orderId Int
   order   Order @relation(fields: [orderId], references: [id])
 
   buyDiary  BuyDiary?
@@ -164,6 +164,7 @@ model Diary {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([orderId, deletedAt])
   @@index([userId, deletedAt, date])
   @@map("diaries")
 }
@@ -172,12 +173,12 @@ model BuyDiary {
   diaryId Int   @id
   diary   Diary @relation(fields: [diaryId], references: [id])
 
-  buyReason            String
-  goalPrice            Decimal         @db.Decimal(15, 2)
+  buyReason            String          @db.Text
+  goalPrice            Decimal?        @db.Decimal(15, 2)
   goalHoldPeriod       GoalHoldPeriod?
   customGoalHoldPeriod String?         @db.VarChar(255)
   emotion              Int
-  memo                 String
+  memo                 String?         @db.Text
 
   @@map("buy_diaries")
 }
@@ -203,12 +204,12 @@ model SellDiary {
   diaryId Int   @id
   diary   Diary @relation(fields: [diaryId], references: [id])
 
-  sellReasonCode       SellReasonCode     @default(GOAL_REACHED)
-  sellReasonDetail     String
-  goalEvaluationCode   GoalEvaluationCode
-  goalEvaluationDetail String
+  sellReasonCode       SellReasonCode
+  sellReasonDetail     String?             @db.VarChar(191)
+  goalEvaluationCode   GoalEvaluationCode?
+  goalEvaluationDetail String?             @db.VarChar(191)
   emotion              Int
-  memo                 String
+  memo                 String?             @db.Text
 
   @@map("sell_diaries")
 }
@@ -303,12 +304,18 @@ enum OrderCategory {
 model Order {
   id Int @id @default(autoincrement())
 
-  orderType     OrderType     @default(MARKET)
-  orderCategory OrderCategory @default(GENERAL)
-  tradeType     TradeType
-  quantity      Int
-  price         Decimal?      @db.Decimal(15, 2)
-  status        OrderStatus   @default(PENDING)
+  orderType             OrderType     @default(MARKET)
+  orderCategory         OrderCategory @default(GENERAL)
+  tradeType             TradeType
+  quantity              Int
+  price                 Decimal?      @db.Decimal(15, 2)
+  status                OrderStatus   @default(PENDING)
+  corpCode              String        @db.VarChar(10)
+  corpName              String        @db.VarChar(100)
+  perAtOrder            Decimal?      @db.Decimal(15, 2)
+  pbrAtOrder            Decimal?      @db.Decimal(15, 2)
+  marketCapAtOrder      Decimal?      @db.Decimal(20, 2)
+  candleChartAtOrderUrl String?       @db.VarChar(2048)
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
@@ -317,7 +324,7 @@ model Order {
   currency     Currency @relation(fields: [currenciesId], references: [id])
 
   trades         Trade[]
-  diary          Diary?
+  diaries        Diary[]
   orderCondition OrderCondition?
 
   createdAt DateTime @default(now())

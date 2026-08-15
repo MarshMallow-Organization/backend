@@ -6,8 +6,8 @@ export type DiaryOrderSnapshot = {
   type: DiaryType;
   corpCode: string;
   corpName: string;
-  perAtTrade: number | null;
-  pbrAtTrade: number | null;
-  marketCapAtTrade: number | null;
-  candelChartAtUrl: string | null;
+  perAtOrder: number | null;
+  pbrAtOrder: number | null;
+  marketCapAtOrder: number | null;
+  candleChartAtOrderUrl: string | null;
 };
