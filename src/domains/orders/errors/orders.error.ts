@@ -44,4 +44,11 @@ export const OrdersErrorCode = defineErrorCodes({
     status: HttpStatus.NOT_FOUND,
     message: '존재하지 않는 지원 통화 ID입니다.',
   },
+
+  // 400: 지정가(LIMIT) 주문인데 가격(price)이 누락되었거나 0 이하인 경우
+  LIMIT_ORDER_PRICE_REQUIRED: {
+    code: 'LIMIT_ORDER_PRICE_REQUIRED',
+    status: HttpStatus.BAD_REQUEST,
+    message: '지정가 주문의 경우 0보다 큰 주문 가격(price)이 필수입니다.',
+  },
 });

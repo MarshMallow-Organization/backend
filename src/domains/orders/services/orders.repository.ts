@@ -3,8 +3,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateOrderDto } from '../dto/request/create-order.dto';
 import { GetOrdersQueryDto } from '../dto/request/get-orders-query.dto';
 import { UpdateOrderDto } from '../dto/request/update-order.dto';
-import { OrderStatus } from 'src/generated/prisma/enums';
+import { OrderCategory, OrderStatus } from 'src/generated/prisma/enums';
 import { Prisma } from 'src/generated/prisma/client';
+import { BusinessException } from 'src/common/exception/businessException';
+import { OrdersErrorCode } from '../errors/orders.error';
 
 @Injectable()
 export class OrdersRepository {
@@ -90,59 +92,140 @@ export class OrdersRepository {
     });
   }
 
-  // 4. 주문 수정
-  async update(id: number, dto: UpdateOrderDto) {
-    return await this.prisma.order.update({
-      where: { id },
-      data: {
-        ...(dto.corpCode !== undefined && { corpCode: dto.corpCode }),
-        ...(dto.corpName !== undefined && { corpName: dto.corpName }),
-        ...(dto.perAtOrder !== undefined && { perAtOrder: dto.perAtOrder }),
-        ...(dto.pbrAtOrder !== undefined && { pbrAtOrder: dto.pbrAtOrder }),
-        ...(dto.marketCapAtOrder !== undefined && {
-          marketCapAtOrder: dto.marketCapAtOrder,
-        }),
-        ...(dto.quantity !== undefined && { quantity: dto.quantity }),
-        ...(dto.price !== undefined && { price: dto.price }),
-        ...(dto.orderCondition && {
-          orderCondition: {
-            update: {
-              ...(dto.orderCondition.triggerPrice !== undefined && {
-                triggerPrice: dto.orderCondition.triggerPrice,
-              }),
-              ...(dto.orderCondition.expiredAt && {
-                expiredAt: new Date(dto.orderCondition.expiredAt),
-              }),
+  // 4. 주문 수정 (원자적 트랜잭션 처리)
+  async update(id: number, userId: number, dto: UpdateOrderDto) {
+    return await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id, userId },
+        include: {
+          orderCondition: true,
+          snapshot: {
+            include: {
+              image: true,
             },
           },
-        }),
-      },
-      include: {
-        orderCondition: true,
-        snapshot: {
-          include: {
-            image: true,
+        },
+      });
+
+      if (!order) {
+        throw new BusinessException(OrdersErrorCode.ORDER_NOT_FOUND);
+      }
+
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BusinessException(OrdersErrorCode.ORDER_NOT_EDITABLE);
+      }
+
+      if (order.orderCategory === OrderCategory.GENERAL && dto.orderCondition) {
+        throw new BusinessException(
+          OrdersErrorCode.GENERAL_ORDER_CANNOT_HAVE_CONDITION,
+        );
+      }
+
+      // 상태가 PENDING인 경우에만 원자적 업데이트 수행
+      const { count } = await tx.order.updateMany({
+        where: {
+          id,
+          userId,
+          status: OrderStatus.PENDING,
+        },
+        data: {
+          ...(dto.corpCode !== undefined && { corpCode: dto.corpCode }),
+          ...(dto.corpName !== undefined && { corpName: dto.corpName }),
+          ...(dto.perAtOrder !== undefined && { perAtOrder: dto.perAtOrder }),
+          ...(dto.pbrAtOrder !== undefined && { pbrAtOrder: dto.pbrAtOrder }),
+          ...(dto.marketCapAtOrder !== undefined && {
+            marketCapAtOrder: dto.marketCapAtOrder,
+          }),
+          ...(dto.quantity !== undefined && { quantity: dto.quantity }),
+          ...(dto.price !== undefined && { price: dto.price }),
+          ...(dto.currenciesId !== undefined && {
+            currenciesId: dto.currenciesId,
+          }),
+        },
+      });
+
+      if (count === 0) {
+        throw new BusinessException(OrdersErrorCode.ORDER_NOT_EDITABLE);
+      }
+
+      if (dto.orderCondition && order.orderCondition) {
+        await tx.orderCondition.update({
+          where: { orderId: id },
+          data: {
+            ...(dto.orderCondition.triggerPrice !== undefined && {
+              triggerPrice: dto.orderCondition.triggerPrice,
+            }),
+            ...(dto.orderCondition.expiredAt && {
+              expiredAt: new Date(dto.orderCondition.expiredAt),
+            }),
+          },
+        });
+      }
+
+      return await tx.order.findFirstOrThrow({
+        where: { id, userId },
+        include: {
+          orderCondition: true,
+          snapshot: {
+            include: {
+              image: true,
+            },
           },
         },
-      },
+      });
     });
   }
 
-  // 5. 주문 취소 (status -> CANCELED로 변경)
-  async cancel(id: number) {
-    return await this.prisma.order.update({
-      where: { id },
-      data: {
-        status: OrderStatus.CANCELED,
-      },
-      include: {
-        orderCondition: true,
-        snapshot: {
-          include: {
-            image: true,
+  // 5. 주문 취소 (원자적 트랜잭션 처리)
+  async cancel(id: number, userId: number) {
+    return await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id, userId },
+        include: {
+          orderCondition: true,
+          snapshot: {
+            include: {
+              image: true,
+            },
           },
         },
-      },
+      });
+
+      if (!order) {
+        throw new BusinessException(OrdersErrorCode.ORDER_NOT_FOUND);
+      }
+
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BusinessException(OrdersErrorCode.ORDER_NOT_CANCELABLE);
+      }
+
+      // 상태가 PENDING인 경우에만 CANCELED로 원자적 업데이트 수행
+      const { count } = await tx.order.updateMany({
+        where: {
+          id,
+          userId,
+          status: OrderStatus.PENDING,
+        },
+        data: {
+          status: OrderStatus.CANCELED,
+        },
+      });
+
+      if (count === 0) {
+        throw new BusinessException(OrdersErrorCode.ORDER_NOT_CANCELABLE);
+      }
+
+      return await tx.order.findFirstOrThrow({
+        where: { id, userId },
+        include: {
+          orderCondition: true,
+          snapshot: {
+            include: {
+              image: true,
+            },
+          },
+        },
+      });
     });
   }
 }
