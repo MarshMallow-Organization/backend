@@ -13,6 +13,7 @@ import { ResponseInterceptor } from './global/interceptor/response.interceptor';
 import { AuthModule } from './domains/auth/auth.module';
 import { DiariesModule } from './domains/diaries/diaries.module';
 import { AssetsModule } from './domains/assets/assets.module';
+import { OrdersModule } from './domains/orders/orders.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -26,6 +27,8 @@ const imports = [
   DiariesModule,
   /** 자산(가상계좌) 모듈 */
   AssetsModule,
+  /**Orders 주문 모듈 */
+  OrdersModule,
 ];
 
 @Module({
