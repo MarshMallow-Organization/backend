@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
@@ -7,6 +15,8 @@ import { PostDiariesDto } from '../dto/request/post-diaries.dto';
 import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
 import { DiariesService } from '../services/diaries.service';
+import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
+import { ParseDiaryIdPipe } from '../pipes/parse-diary-id.pipe';
 
 @Controller('diaries')
 @UseGuards(StubAuthGuard)
@@ -27,5 +37,13 @@ export class DiariesController {
     @Query() query: GetDiariesQueryDto,
   ): Promise<GetDiariesResponseDto> {
     return this.diariesService.getDiaries(user.id, query);
+  }
+
+  @Get(':diaryId')
+  getDiaryDetail(
+    @CurrentUser() user: AuthUser,
+    @Param('diaryId', ParseDiaryIdPipe) diaryId: number,
+  ): Promise<DiaryDetailResponseDto> {
+    return this.diariesService.getDiaryDetail(user.id, diaryId);
   }
 }
