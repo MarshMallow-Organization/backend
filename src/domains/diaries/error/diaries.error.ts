@@ -2,6 +2,16 @@ import { HttpStatus } from '@nestjs/common';
 import { defineErrorCodes } from '../../../common/exception/errorDefinition';
 
 export const DiariesErrorCode = defineErrorCodes({
+  INVALID_DIARY_ID: {
+    code: 'INVALID_DIARY_ID',
+    status: HttpStatus.BAD_REQUEST,
+    message: '일기 ID 형식이 올바르지 않습니다.',
+  },
+  DIARY_NOT_FOUND: {
+    code: 'DIARY_NOT_FOUND',
+    status: HttpStatus.NOT_FOUND,
+    message: '해당 일기를 찾을 수 없습니다.',
+  },
   ORDER_NOT_FOUND: {
     code: 'ORDER_NOT_FOUND',
     status: HttpStatus.NOT_FOUND,

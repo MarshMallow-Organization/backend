@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -21,6 +21,8 @@ import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dt
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
 import { DiaryErrorResponseDto } from '../dto/response/diary-error-response.dto';
 import { DiariesService } from '../services/diaries.service';
+import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
+import { ParseDiaryIdPipe } from '../pipes/parse-diary-id.pipe';
 
 @ApiTags('Diaries')
 @ApiExtraModels(
@@ -105,5 +107,13 @@ export class DiariesController {
     @Query() query: GetDiariesQueryDto,
   ): Promise<GetDiariesResponseDto> {
     return this.diariesService.getDiaries(user.id, query);
+  }
+
+  @Get(':diaryId')
+  getDiaryDetail(
+    @CurrentUser() user: AuthUser,
+    @Param('diaryId', ParseDiaryIdPipe) diaryId: number,
+  ): Promise<DiaryDetailResponseDto> {
+    return this.diariesService.getDiaryDetail(user.id, diaryId);
   }
 }
