@@ -3,7 +3,7 @@ import {
   GoalEvaluationCode,
   GoalHoldPeriod,
   SellReasonCode,
-} from '../dto/request/post-diaries.dto';
+} from './diary.model';
 
 type CommonCreateDiaryCommand = {
   orderId: number;

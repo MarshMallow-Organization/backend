@@ -1,4 +1,4 @@
-import { DiaryType } from '../request/post-diaries.dto';
+import { DiaryType } from '../../models/diary.model';
 
 export class CreateDiaryResponseDto {
   diaryId: number;

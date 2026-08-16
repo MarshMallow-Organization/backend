@@ -1,4 +1,4 @@
-import { DiaryType } from '../dto/request/post-diaries.dto';
+import { DiaryType } from './diary.model';
 
 export type DiaryOrderSnapshot = {
   orderId: number;

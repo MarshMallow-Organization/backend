@@ -5,6 +5,11 @@ import { DiariesService } from './services/diaries.service';
 import { CreateDiaryResponseDto } from './dto/response/create-diary-response.dto';
 import { DiaryOrderSnapshot } from './models/diary-order-snapshot.model';
 import { DiaryPageResult } from './models/diary-page.model';
+import { DiaryUpdateSnapshot } from './models/update-diary.model';
+import {
+  UpdatedDiaryResult,
+  UpdateDiaryCommand,
+} from './models/update-diary.model';
 
 class DiariesRepositoryStub extends DiariesRepository {
   private notImplemented(): never {
@@ -26,6 +31,21 @@ class DiariesRepositoryStub extends DiariesRepository {
   }
 
   createDiary(): Promise<CreateDiaryResponseDto> {
+    return this.notImplemented();
+  }
+
+  findActiveDiaryForUpdate(): Promise<DiaryUpdateSnapshot | null> {
+    return this.notImplemented();
+  }
+
+  updateDiary(
+    _userId: number,
+    _diaryId: number,
+    _command: UpdateDiaryCommand,
+  ): Promise<UpdatedDiaryResult> {
+    void _userId;
+    void _diaryId;
+    void _command;
     return this.notImplemented();
   }
 }
