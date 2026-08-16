@@ -90,6 +90,7 @@ describe('DiariesService', () => {
       ...createDiaryRepository,
       findActiveDiaryForUpdate: jest.fn(),
       updateDiary: jest.fn(),
+      softDeleteDiary: jest.fn(),
     };
 
     service = new DiariesService(diariesRepository);
@@ -499,6 +500,37 @@ describe('DiariesService', () => {
         'INVALID_FIELD_VALUE',
       );
       expect(diariesRepository.updateDiary).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteDiary', () => {
+    const deleted = {
+      diaryId: 1,
+      deleted: true as const,
+      deletedAt: '2026-08-16T01:15:00.000Z',
+    };
+
+    it('본인 일기를 soft delete하고 삭제 결과를 반환한다', async () => {
+      diariesRepository.softDeleteDiary.mockResolvedValue(deleted);
+
+      await expect(service.deleteDiary(userId, 1)).resolves.toEqual(deleted);
+      expect(diariesRepository.softDeleteDiary).toHaveBeenCalledWith(userId, 1);
+    });
+
+    it('이미 삭제된 본인 일기도 기존 삭제 시각으로 같은 결과를 반환한다', async () => {
+      diariesRepository.softDeleteDiary.mockResolvedValue(deleted);
+
+      await expect(service.deleteDiary(userId, 1)).resolves.toEqual(deleted);
+      expect(diariesRepository.softDeleteDiary).toHaveBeenCalledTimes(1);
+    });
+
+    it('일기가 없거나 소유자가 다르면 DIARY_NOT_FOUND를 던진다', async () => {
+      diariesRepository.softDeleteDiary.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.deleteDiary(userId, 999),
+        'DIARY_NOT_FOUND',
+      );
     });
   });
 });

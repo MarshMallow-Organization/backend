@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -35,13 +36,42 @@ import {
 import { DiariesService } from '../services/diaries.service';
 import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
 import { ParseDiaryIdPipe } from '../pipes/parse-diary-id.pipe';
+import { DeleteDiaryResponseDto } from '../dto/response/delete-diary-response.dto';
 
 @ApiTags('Diaries')
-@ApiExtraModels(UpdateDiaryResponseDto)
+@ApiExtraModels(UpdateDiaryResponseDto, DeleteDiaryResponseDto)
 @Controller('diaries')
 @UseGuards(StubAuthGuard)
 export class DiariesController {
   constructor(private readonly diariesService: DiariesService) {}
+
+  @Delete(':diaryId')
+  @ApiOperation({
+    summary: '매매 일기 삭제',
+    description:
+      '본인 소유 일기를 soft delete한다. 이미 삭제된 일기에 대한 재요청은 최초 삭제 시각을 유지하며 성공한다.',
+  })
+  @ApiParam({
+    name: 'diaryId',
+    schema: { type: 'integer', minimum: 1 },
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      required: ['data'],
+      properties: {
+        data: { $ref: getSchemaPath(DeleteDiaryResponseDto) },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'INVALID_DIARY_ID' })
+  @ApiNotFoundResponse({ description: 'DIARY_NOT_FOUND' })
+  deleteDiary(
+    @CurrentUser() user: AuthUser,
+    @Param('diaryId', ParseDiaryIdPipe) diaryId: number,
+  ): Promise<DeleteDiaryResponseDto> {
+    return this.diariesService.deleteDiary(user.id, diaryId);
+  }
 
   @Post()
   createDiary(
