@@ -14,6 +14,7 @@ import { UpdateDiaryDto } from '../dto/request/update-diary.dto';
 import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dto';
 import { DiariesRepository } from '../repositories/diaries.repository';
 import { buildUpdateDiaryCommand } from '../models/update-diary.model';
+import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
 
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 10;
@@ -21,6 +22,22 @@ const DEFAULT_SIZE = 10;
 @Injectable()
 export class DiariesService {
   constructor(private readonly diariesRepository: DiariesRepository) {}
+
+  async getDiaryDetail(
+    userId: number,
+    diaryId: number,
+  ): Promise<DiaryDetailResponseDto> {
+    const diary = await this.diariesRepository.findDetailById(userId, diaryId);
+
+    if (diary === null) {
+      throw new BusinessException(DiariesErrorCode.DIARY_NOT_FOUND, {
+        userId,
+        diaryId,
+      });
+    }
+
+    return diary;
+  }
 
   async getDiaries(
     userId: number,

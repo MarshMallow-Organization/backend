@@ -28,12 +28,13 @@ import { UpdateDiaryDto } from '../dto/request/update-diary.dto';
 import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
 import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto';
 import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dto';
-import { DiaryIdPipe } from '../pipes/diary-id.pipe';
 import {
   UpdateDiaryBody,
   UpdateDiaryValidationPipe,
 } from '../pipes/update-diary-validation.pipe';
 import { DiariesService } from '../services/diaries.service';
+import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
+import { ParseDiaryIdPipe } from '../pipes/parse-diary-id.pipe';
 
 @ApiTags('Diaries')
 @ApiExtraModels(UpdateDiaryResponseDto)
@@ -77,7 +78,7 @@ export class DiariesController {
   @ApiNotFoundResponse({ description: 'DIARY_NOT_FOUND' })
   updateDiary(
     @CurrentUser() user: AuthUser,
-    @Param('diaryId', DiaryIdPipe) diaryId: number,
+    @Param('diaryId', ParseDiaryIdPipe) diaryId: number,
     @UpdateDiaryBody(UpdateDiaryValidationPipe) request: UpdateDiaryDto,
   ): Promise<UpdateDiaryResponseDto> {
     return this.diariesService.updateDiary(user.id, diaryId, request);
@@ -89,5 +90,13 @@ export class DiariesController {
     @Query() query: GetDiariesQueryDto,
   ): Promise<GetDiariesResponseDto> {
     return this.diariesService.getDiaries(user.id, query);
+  }
+
+  @Get(':diaryId')
+  getDiaryDetail(
+    @CurrentUser() user: AuthUser,
+    @Param('diaryId', ParseDiaryIdPipe) diaryId: number,
+  ): Promise<DiaryDetailResponseDto> {
+    return this.diariesService.getDiaryDetail(user.id, diaryId);
   }
 }
