@@ -17,6 +17,8 @@ import { GetDiariesResponseDto } from '../dto/response/get-diaries-response.dto'
 import { DiariesService } from '../services/diaries.service';
 import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
 import { ParseDiaryIdPipe } from '../pipes/parse-diary-id.pipe';
+import { DiaryPrefillResponseDto } from '../dto/response/diary-prefill-response.dto';
+import { ParseOrderIdPipe } from '../pipes/parse-order-id.pipe';
 
 @Controller('diaries')
 @UseGuards(StubAuthGuard)
@@ -37,6 +39,14 @@ export class DiariesController {
     @Query() query: GetDiariesQueryDto,
   ): Promise<GetDiariesResponseDto> {
     return this.diariesService.getDiaries(user.id, query);
+  }
+
+  @Get('prefill')
+  getDiaryPrefill(
+    @CurrentUser() user: AuthUser,
+    @Query('orderId', ParseOrderIdPipe) orderId: number,
+  ): Promise<DiaryPrefillResponseDto> {
+    return this.diariesService.getDiaryPrefill(user.id, orderId);
   }
 
   @Get(':diaryId')
