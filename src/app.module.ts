@@ -38,7 +38,7 @@ const imports = [
 ];
 
 @Module({
-  imports: [...imports],
+  imports,
   controllers: [AppController],
   providers: [
     AppService,
