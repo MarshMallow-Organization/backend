@@ -7,11 +7,8 @@ export class TossApiService {
   constructor(private readonly configService: ConfigService) {}
 
   async getStockfromToss(stockCode: string): Promise<TossStockResponse> {
-    // 토스 종목 조회 api
-    /*
-    accessToken을 쓰는 이유
-    토큰을 실제로 코드에 입력하면 안되므로 accessToken으로 받아옴
-    */
+    // 토스 종목 기본 정보 api
+
     const accessToken = this.configService.get<string>('toss.accessToken');
 
     const response = await fetch(
