@@ -12,6 +12,7 @@ import {
   UpdateDiaryCommand,
 } from './models/update-diary.model';
 import { DeleteDiaryResponseDto } from './dto/response/delete-diary-response.dto';
+import { DiaryPrefillSnapshot } from './models/diary-prefill-snapshot.model';
 
 class DiariesRepositoryStub extends DiariesRepository {
   private notImplemented(): never {
@@ -56,6 +57,10 @@ class DiariesRepositoryStub extends DiariesRepository {
   }
 
   softDeleteDiary(): Promise<DeleteDiaryResponseDto | null> {
+    return this.notImplemented();
+  }
+
+  findPrefillByOrderId(): Promise<DiaryPrefillSnapshot | null> {
     return this.notImplemented();
   }
 }

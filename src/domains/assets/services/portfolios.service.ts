@@ -6,12 +6,15 @@ import {
 } from 'src/common/exception/prismaError.util';
 import { CustomLogger } from 'src/common/logger/customLogger';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { AddPortfolioStockDto } from '../dto/request/add-portfolio-stock.dto';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
 import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
 import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
 import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
+import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dto';
+import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-removed.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
 
@@ -339,6 +342,118 @@ export class PortfoliosService {
 
       throw error;
     }
+  }
+
+  /**
+   * 가상계좌에 종목을 추가한다.
+   *
+   * 한 종목은 사용자당 하나의 계좌에만 속한다. 가상계좌는 실보유 종목의
+   * 분할이라, 같은 종목이 두 계좌에 들어가면 수량·평가손익이 양쪽에
+   * 중복 계상되어 계좌별 수익률이 겹친다.
+   *
+   * 사전 조회가 필수다. P2002는 어느 계좌와 충돌했는지 알려주지 않아
+   * UNIQUE 제약만으로는 ALREADY_ADDED와 IN_OTHER_PORTFOLIO를 구분할 수 없다.
+   * 제약은 사전 조회와 INSERT 사이의 경쟁 상태 안전망으로 남긴다.
+   */
+  async addStock(
+    userId: number,
+    portfolioId: number,
+    dto: AddPortfolioStockDto,
+  ): Promise<PortfolioStockAddedDto> {
+    const { stockCode } = dto;
+
+    try {
+      const added = await this.prisma.$transaction(async (tx) => {
+        await this.findOwnedOrThrow(tx, userId, portfolioId);
+
+        const existing = await tx.virtualPortfolioStock.findUnique({
+          where: { userId_stockCode: { userId, stockCode } },
+          select: { virtualPortfolioId: true },
+        });
+
+        if (existing) {
+          throw new BusinessException(
+            existing.virtualPortfolioId === portfolioId
+              ? PortfoliosErrorCode.PORTFOLIO_STOCK_ALREADY_ADDED
+              : PortfoliosErrorCode.PORTFOLIO_STOCK_IN_OTHER_PORTFOLIO,
+            { userId, stockCode, portfolioId },
+          );
+        }
+
+        return tx.virtualPortfolioStock.create({
+          data: { userId, virtualPortfolioId: portfolioId, stockCode },
+          select: { createdAt: true },
+        });
+      });
+
+      this.logger.info('가상계좌에 종목을 추가했습니다', {
+        labels: {
+          portfolio_id: portfolioId,
+          user_id: userId,
+          stock_code: stockCode,
+        },
+      });
+
+      return {
+        portfolioId,
+        stockCode,
+        addedAt: added.createdAt.toISOString(),
+      };
+    } catch (error) {
+      /**
+       * 동시 요청으로 사전 조회를 통과한 경우. 이 시점에는 어느 계좌와
+       * 충돌했는지 알 수 없어 보수적으로 IN_OTHER_PORTFOLIO를 쓴다.
+       */
+      if (isPrismaError(error, PrismaErrorCode.UNIQUE_CONSTRAINT)) {
+        throw new BusinessException(
+          PortfoliosErrorCode.PORTFOLIO_STOCK_IN_OTHER_PORTFOLIO,
+          { userId, stockCode, portfolioId },
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * 가상계좌에서 종목을 제거한다. 거래 기록은 영향받지 않는다.
+   *
+   * 404가 두 종류다. 계좌 자체가 없는 것과 계좌는 있으나 그 종목이 없는 것을
+   * 구분해, 프론트가 전자는 목록 새로고침·후자는 무시로 처리할 수 있게 한다.
+   *
+   * delete가 아니라 deleteMany를 쓴다. delete는 대상이 없을 때 P2025를 던져
+   * PrismaExceptionFilter가 DB_RECORD_NOT_FOUND를 먼저 돌려주지만,
+   * deleteMany는 count로 판정할 수 있고 userId 조건까지 where에 넣을 수 있다.
+   */
+  async removeStock(
+    userId: number,
+    portfolioId: number,
+    stockCode: string,
+  ): Promise<PortfolioStockRemovedDto> {
+    await this.prisma.$transaction(async (tx) => {
+      await this.findOwnedOrThrow(tx, userId, portfolioId);
+
+      const { count } = await tx.virtualPortfolioStock.deleteMany({
+        where: { userId, virtualPortfolioId: portfolioId, stockCode },
+      });
+
+      if (count === 0) {
+        throw new BusinessException(
+          PortfoliosErrorCode.PORTFOLIO_STOCK_NOT_FOUND,
+          { userId, stockCode, portfolioId },
+        );
+      }
+    });
+
+    this.logger.info('가상계좌에서 종목을 제거했습니다', {
+      labels: {
+        portfolio_id: portfolioId,
+        user_id: userId,
+        stock_code: stockCode,
+      },
+    });
+
+    return { portfolioId, stockCode, removed: true };
   }
 
   /**
