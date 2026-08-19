@@ -12,12 +12,16 @@ import {
 import type { AuthUser } from 'src/common/auth/authUser';
 import { CurrentUser } from 'src/common/auth/currentUser.decorator';
 import { StubAuthGuard } from 'src/common/auth/stubAuth.guard';
+import { ParseStockCodePipe } from 'src/common/pipe/parseStockCode.pipe';
+import { AddPortfolioStockDto } from '../dto/request/add-portfolio-stock.dto';
 import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
 import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
 import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
 import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
+import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dto';
+import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-removed.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosService } from '../services/portfolios.service';
 
@@ -84,5 +88,31 @@ export class PortfoliosController {
     @Param('portfolioId', ParseIntPipe) portfolioId: number,
   ): Promise<PortfolioDeletedDto> {
     return this.portfoliosService.deletePortfolio(user.id, portfolioId);
+  }
+
+  @Post(':portfolioId/stocks')
+  addStock(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+    @Body() dto: AddPortfolioStockDto,
+  ): Promise<PortfolioStockAddedDto> {
+    return this.portfoliosService.addStock(user.id, portfolioId, dto);
+  }
+
+  /**
+   * stockCode는 본문이 아니라 경로에 있어 전역 ValidationPipe가 형식을
+   * 보지 않는다. 그대로 두면 형식이 틀린 코드가 '조회했더니 없더라'로
+   * 흘러 404가 되는데, 명세는 형식 오류를 400으로 요구한다.
+   *
+   * 관심종목 쪽과 같은 ParseStockCodePipe를 쓴다. 그 파이프가 도메인이
+   * 아니라 common에 있는 이유가 이 핸들러다.
+   */
+  @Delete(':portfolioId/stocks/:stockCode')
+  removeStock(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+    @Param('stockCode', ParseStockCodePipe) stockCode: string,
+  ): Promise<PortfolioStockRemovedDto> {
+    return this.portfoliosService.removeStock(user.id, portfolioId, stockCode);
   }
 }

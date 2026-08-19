@@ -47,4 +47,41 @@ export const PortfoliosErrorCode = defineErrorCodes({
     status: HttpStatus.BAD_REQUEST,
     message: '보유한 가상계좌 전체를 중복 없이 전달해야 합니다.',
   },
+
+  /**
+   * 종목이 이미 이 계좌에 있는 경우.
+   *
+   * 아래 IN_OTHER_PORTFOLIO와 나눈 이유는 프론트 처리가 다르기 때문이다.
+   * 이쪽은 무시해도 되지만, 저쪽은 어느 계좌에 있는지 안내해야 한다.
+   */
+  PORTFOLIO_STOCK_ALREADY_ADDED: {
+    code: 'PORTFOLIO_STOCK_ALREADY_ADDED',
+    status: HttpStatus.CONFLICT,
+    message: '이미 이 가상계좌에 추가된 종목입니다.',
+  },
+
+  /**
+   * 종목이 같은 사용자의 다른 계좌에 있는 경우.
+   *
+   * 가상계좌는 실보유 종목의 분할이라 한 종목이 두 계좌에 들어가면
+   * 수량·평가손익이 양쪽에 중복 계상된다.
+   */
+  PORTFOLIO_STOCK_IN_OTHER_PORTFOLIO: {
+    code: 'PORTFOLIO_STOCK_IN_OTHER_PORTFOLIO',
+    status: HttpStatus.CONFLICT,
+    message: '이미 다른 가상계좌에 추가된 종목입니다.',
+  },
+
+  /**
+   * 계좌는 있으나 그 종목이 등록돼 있지 않은 경우.
+   *
+   * PORTFOLIO_NOT_FOUND와 나눈다. 소유권이 이미 확인된 계좌 안에서의
+   * 구분이라 정보가 새지 않고, 프론트가 전자는 목록 새로고침·후자는
+   * 무시로 다르게 처리할 수 있다.
+   */
+  PORTFOLIO_STOCK_NOT_FOUND: {
+    code: 'PORTFOLIO_STOCK_NOT_FOUND',
+    status: HttpStatus.NOT_FOUND,
+    message: '가상계좌에 등록된 종목이 아닙니다.',
+  },
 });
