@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BusinessException } from 'src/common/exception/businessException';
 import { TossApiService } from 'src/domains/api/toss-api.service';
 import type { TossStock } from 'src/domains/api/types/toss-stock.type';
@@ -54,12 +55,12 @@ describe('MarketsService', () => {
     },
   };
 
-  const findUnique = jest.fn((): Promise<HiddenStockLookup | null> =>
-    Promise.resolve(null),
-  );
-  const getStockfromToss = jest.fn(() =>
-    Promise.resolve({ result: [domesticStock] }),
-  );
+  const findUnique = jest.fn<
+    (where: unknown) => Promise<HiddenStockLookup | null>
+  >(() => Promise.resolve(null));
+  const getStockfromToss = jest.fn<
+    (stockCode: string) => Promise<{ result: TossStock[] }>
+  >(() => Promise.resolve({ result: [domesticStock] }));
 
   let service: MarketsService;
 
