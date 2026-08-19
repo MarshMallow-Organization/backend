@@ -2,22 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
 import { TossApiService } from 'src/domains/api/toss-api.service';
-import { MarketsErrorCode } from 'src/domains/markets/markets-error-code';
+import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
 
 @Injectable()
-export class GetStockService {
+export class MarketsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tossApiService: TossApiService,
   ) {}
 
-  async getStock(userId: number, symbol: string) {
+  async getStock(userId: number, stockCode: string) {
     // 해당 종목이 숨김 상태인지 확인
     const existingHiddenstock = await this.prisma.hiddenStock.findUnique({
       where: {
         userId_stockCode: {
           userId,
-          stockCode: symbol,
+          stockCode,
         },
       },
     });
@@ -39,7 +39,7 @@ export class GetStockService {
     }
 
     // 실제로 존재하는 종목인지 확인
-    const existingStock = await this.tossApiService.getStockfromToss(symbol);
+    const existingStock = await this.tossApiService.getStockfromToss(stockCode);
 
     if (existingStock.result.length === 0) {
       throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);

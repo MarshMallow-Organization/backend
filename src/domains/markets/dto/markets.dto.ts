@@ -4,7 +4,7 @@ import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
 // hidden_stocks.stock_code의 DB 규격(VARCHAR(10))과 동일하게 제한한다.
 const STOCK_CODE_MAX_LENGTH = 10;
 
-export class GetStockDto {
+export class MarketsDto {
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
