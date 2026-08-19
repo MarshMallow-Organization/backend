@@ -23,16 +23,28 @@ export interface TossStock {
   } | null;
 }
 
-// export interface TossRanking {
-//   // 랭킹
-//   symbol: string;
-//   name: string;
-// }
+export interface TossRankingItem {
+  // 종목 랭킹조회
+  rank: number;
+  symbol: string;
+  currency: string;
+  price: {
+    lastPrice: string;
+    basePrice: string;
+    changeRate: string;
+  };
+  tradingVolume: string;
+  tradingAmount: string;
+}
 
+export interface TossRanking {
+  rankedAt: string | null;
+  rankings: TossRankingItem[];
+}
+
+export interface TossRankingResponse {
+  result: TossRanking;
+}
 export interface TossStockResponse {
   result: TossStock[];
 }
-
-// export interface TossRankingResponse {
-//   result: TossRanking[];
-// }

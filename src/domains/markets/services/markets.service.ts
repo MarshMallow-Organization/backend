@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
 import { TossApiService } from 'src/domains/api/toss-api.service';
 import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
+import { GetStockRankingsQueryDto } from '../dto/get-stock-ranking.dto';
 
 @Injectable()
 export class MarketsService {
@@ -65,5 +66,24 @@ export class MarketsService {
       koreanMarketDetail: resultstock.koreanMarketDetail,
       isHidden: false,
     };
+  }
+
+  async getStockRanking(userId: number, query: GetStockRankingsQueryDto) {
+    // 토스 api에 query.type 값을 매핑
+    const rankingTypeMap = {
+      amount: 'MARKET_TRADING_AMOUNT',
+      volume: 'MARKET_TRADING_VOLUME',
+      gainers: 'TOP_GAINERS',
+      losers: 'TOP_LOSERS',
+    } as const;
+    // 쿼리 파라미터를 가지고 토스의 랭킹 조회 api를 호출
+    const stockRannking = await this.tossApiService.getRanking(
+      query.marketCountry,
+      query.type,
+      query.duration,
+      query.count,
+    );
+    // 
+    // 목록의 종목 코드와 사용자의 숨김 목록을 확인하여 같은게 있을 경우 패스 및 개수 카운트
   }
 }
