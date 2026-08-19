@@ -16,6 +16,7 @@ import { DiaryOrderSnapshot } from '../models/diary-order-snapshot.model';
 import { DiariesService } from './diaries.service';
 import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dto';
 import { BuyDiaryDetailDto } from '../dto/response/diary-detail-response.dto';
+import { DiaryPrefillSnapshot } from '../models/diary-prefill-snapshot.model';
 
 type CreateDiaryRepository = Pick<
   DiariesRepository,
@@ -45,6 +46,9 @@ describe('DiariesService', () => {
   let diariesRepository: jest.Mocked<DiariesRepository>;
   let findDetailById: jest.MockedFunction<DiariesRepository['findDetailById']>;
   let findPage: jest.MockedFunction<DiariesRepository['findPage']>;
+  let findPrefillByOrderId: jest.MockedFunction<
+    DiariesRepository['findPrefillByOrderId']
+  >;
   let createDiaryRepository: jest.Mocked<CreateDiaryRepository>;
 
   const userId = 7;
@@ -65,6 +69,7 @@ describe('DiariesService', () => {
 
   beforeEach(() => {
     findDetailById = jest.fn();
+    findPrefillByOrderId = jest.fn();
     findPage = jest.fn(
       (
         _userId: number,
@@ -86,6 +91,7 @@ describe('DiariesService', () => {
     };
     diariesRepository = {
       findDetailById,
+      findPrefillByOrderId,
       findPage,
       ...createDiaryRepository,
       findActiveDiaryForUpdate: jest.fn(),
@@ -93,6 +99,111 @@ describe('DiariesService', () => {
     };
 
     service = new DiariesService(diariesRepository);
+  });
+
+  describe('getDiaryPrefill', () => {
+    const buySnapshot: DiaryPrefillSnapshot = {
+      orderId: 12,
+      userId,
+      type: DiaryType.BUY,
+      corpCode: '005930',
+      corpName: '삼성전자',
+      orderedAt: '2026-07-30T15:56:00.000Z',
+      price: 255_000,
+      quantity: 5,
+      buyPrice: null,
+      realizedProfit: null,
+      returnRate: null,
+      perAtTrade: 6.4,
+      pbrAtTrade: 2.8,
+      marketCapAtTrade: 1_698_000_000_000_000,
+      candelChartAtUrl: 'https://example.com/candle.png',
+    };
+
+    it('BUY 주문의 자동채움 값과 총액을 반환한다', async () => {
+      findPrefillByOrderId.mockResolvedValue(buySnapshot);
+
+      const result = await service.getDiaryPrefill(userId, 12);
+
+      expect(findPrefillByOrderId).toHaveBeenCalledWith(userId, 12);
+      expect(result).toEqual({
+        orderId: 12,
+        type: DiaryType.BUY,
+        corpCode: '005930',
+        corpName: '삼성전자',
+        orderedAt: '2026-07-30T15:56:00.000Z',
+        price: 255_000,
+        quantity: 5,
+        totalAmount: 1_275_000,
+        perAtTrade: 6.4,
+        pbrAtTrade: 2.8,
+        marketCapAtTrade: 1_698_000_000_000_000,
+        candelChartAtUrl: 'https://example.com/candle.png',
+      });
+    });
+
+    it('BUY 주문 가격이 없으면 총액도 null이다', async () => {
+      findPrefillByOrderId.mockResolvedValue({
+        ...buySnapshot,
+        price: null,
+      });
+
+      await expect(service.getDiaryPrefill(userId, 12)).resolves.toMatchObject({
+        price: null,
+        totalAmount: null,
+      });
+    });
+
+    it('SELL 주문은 buyPrice를 보류하고 매도 총액만 계산한다', async () => {
+      findPrefillByOrderId.mockResolvedValue({
+        ...buySnapshot,
+        orderId: 15,
+        type: DiaryType.SELL,
+        price: 270_000,
+        realizedProfit: 75_000,
+        returnRate: 5.88,
+      });
+
+      await expect(service.getDiaryPrefill(userId, 15)).resolves.toEqual({
+        orderId: 15,
+        type: DiaryType.SELL,
+        corpCode: '005930',
+        corpName: '삼성전자',
+        orderedAt: '2026-07-30T15:56:00.000Z',
+        buyPrice: null,
+        sellPrice: 270_000,
+        quantity: 5,
+        totalBuyAmount: null,
+        totalSellAmount: 1_350_000,
+        realizedProfit: 75_000,
+        returnRate: 5.88,
+        perAtTrade: 6.4,
+        pbrAtTrade: 2.8,
+        marketCapAtTrade: 1_698_000_000_000_000,
+        candelChartAtUrl: 'https://example.com/candle.png',
+      });
+    });
+
+    it('주문이 없거나 다른 사용자의 주문이면 ORDER_NOT_FOUND를 던진다', async () => {
+      findPrefillByOrderId.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.getDiaryPrefill(userId, 999),
+        'ORDER_NOT_FOUND',
+      );
+    });
+
+    it('Repository가 타 사용자 주문을 반환해도 ORDER_NOT_FOUND로 숨긴다', async () => {
+      findPrefillByOrderId.mockResolvedValue({
+        ...buySnapshot,
+        userId: userId + 1,
+      });
+
+      await expectBusinessException(
+        service.getDiaryPrefill(userId, buySnapshot.orderId),
+        'ORDER_NOT_FOUND',
+      );
+    });
   });
 
   describe('getDiaryDetail', () => {

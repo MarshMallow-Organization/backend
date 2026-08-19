@@ -15,6 +15,7 @@ import { DiariesModule } from './domains/diaries/diaries.module';
 import { AssetsModule } from './domains/assets/assets.module';
 import { UsersModule } from './domains/users/users.module';
 import { OrdersModule } from './domains/orders/orders.module';
+import { TradesModule } from './domains/trades/trades.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -32,10 +33,12 @@ const imports = [
   UsersModule,
   /** Orders 주문 모듈 */
   OrdersModule,
+  /** 매매 체결 내역 모듈 */
+  TradesModule,
 ];
 
 @Module({
-  imports: [...imports],
+  imports,
   controllers: [AppController],
   providers: [
     AppService,

@@ -11,6 +11,7 @@ import {
   UpdatedDiaryResult,
   UpdateDiaryCommand,
 } from './models/update-diary.model';
+import { DiaryPrefillSnapshot } from './models/diary-prefill-snapshot.model';
 
 class DiariesRepositoryStub extends DiariesRepository {
   private notImplemented(): never {
@@ -51,6 +52,10 @@ class DiariesRepositoryStub extends DiariesRepository {
     void _userId;
     void _diaryId;
     void _command;
+    return this.notImplemented();
+  }
+
+  findPrefillByOrderId(): Promise<DiaryPrefillSnapshot | null> {
     return this.notImplemented();
   }
 }

@@ -15,6 +15,8 @@ import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dt
 import { DiariesRepository } from '../repositories/diaries.repository';
 import { buildUpdateDiaryCommand } from '../models/update-diary.model';
 import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
+import { DiaryPrefillResponseDto } from '../dto/response/diary-prefill-response.dto';
+import { DiaryType } from '../dto/request/post-diaries.dto';
 
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 10;
@@ -22,6 +24,56 @@ const DEFAULT_SIZE = 10;
 @Injectable()
 export class DiariesService {
   constructor(private readonly diariesRepository: DiariesRepository) {}
+
+  async getDiaryPrefill(
+    userId: number,
+    orderId: number,
+  ): Promise<DiaryPrefillResponseDto> {
+    const snapshot = await this.diariesRepository.findPrefillByOrderId(
+      userId,
+      orderId,
+    );
+
+    if (snapshot === null || snapshot.userId !== userId) {
+      throw new BusinessException(DiariesErrorCode.ORDER_NOT_FOUND, {
+        userId,
+        orderId,
+      });
+    }
+
+    const common = {
+      orderId: snapshot.orderId,
+      type: snapshot.type,
+      corpCode: snapshot.corpCode,
+      corpName: snapshot.corpName,
+      orderedAt: snapshot.orderedAt,
+      quantity: snapshot.quantity,
+      perAtTrade: snapshot.perAtTrade,
+      pbrAtTrade: snapshot.pbrAtTrade,
+      marketCapAtTrade: snapshot.marketCapAtTrade,
+      candelChartAtUrl: snapshot.candelChartAtUrl,
+    };
+
+    if (snapshot.type === DiaryType.BUY) {
+      return {
+        ...common,
+        type: DiaryType.BUY,
+        price: snapshot.price,
+        totalAmount: this.calculateTotal(snapshot.price, snapshot.quantity),
+      };
+    }
+
+    return {
+      ...common,
+      type: DiaryType.SELL,
+      buyPrice: snapshot.buyPrice,
+      sellPrice: snapshot.price,
+      totalBuyAmount: this.calculateTotal(snapshot.buyPrice, snapshot.quantity),
+      totalSellAmount: this.calculateTotal(snapshot.price, snapshot.quantity),
+      realizedProfit: snapshot.realizedProfit,
+      returnRate: snapshot.returnRate,
+    };
+  }
 
   async getDiaryDetail(
     userId: number,
@@ -168,6 +220,13 @@ export class DiariesService {
         size,
       });
     }
+  }
+
+  private calculateTotal(
+    price: number | null,
+    quantity: number,
+  ): number | null {
+    return price === null ? null : price * quantity;
   }
 
   private validateDateFilter(query: GetDiariesQueryDto): void {
