@@ -25,6 +25,17 @@ describe('UsersService', () => {
     Promise.resolve({ createdAt: connectedAt }),
   );
   const countTrades = jest.fn((): Promise<number> => Promise.resolve(20));
+  const updateUser = jest.fn((args: unknown) => {
+    void args;
+
+    return Promise.resolve({
+      id: userId,
+      name: '수정된 이름',
+      profilePic: {
+        image: { imageUrl: 'https://example.com/updated-profile.jpg' },
+      },
+    });
+  });
 
   let service: UsersService;
 
@@ -36,9 +47,16 @@ describe('UsersService', () => {
     });
     findTossAccount.mockResolvedValue({ createdAt: connectedAt });
     countTrades.mockResolvedValue(20);
+    updateUser.mockResolvedValue({
+      id: userId,
+      name: '수정된 이름',
+      profilePic: {
+        image: { imageUrl: 'https://example.com/updated-profile.jpg' },
+      },
+    });
 
     const prisma = {
-      user: { findUnique: findUser },
+      user: { findUnique: findUser, update: updateUser },
       profilePic: { findUnique: findProfilePic },
       tossAccount: { findUnique: findTossAccount },
       trade: { count: countTrades },
@@ -100,5 +118,94 @@ describe('UsersService', () => {
     expect(findProfilePic).not.toHaveBeenCalled();
     expect(findTossAccount).not.toHaveBeenCalled();
     expect(countTrades).not.toHaveBeenCalled();
+  });
+
+  describe('updateUserInfo', () => {
+    const profileImageUrl = 'https://example.com/updated-profile.jpg';
+    const responseSelect = {
+      id: true,
+      name: true,
+      profilePic: {
+        select: {
+          image: {
+            select: {
+              imageUrl: true,
+            },
+          },
+        },
+      },
+    };
+
+    it('이름만 전달하면 이름만 수정한다', async () => {
+      const result = await service.updateUserInfo(userId, {
+        name: '수정된 이름',
+      });
+
+      expect(updateUser).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: { name: '수정된 이름' },
+        select: responseSelect,
+      });
+      expect(result).toEqual({
+        id: userId,
+        name: '수정된 이름',
+        profileImageUrl,
+      });
+    });
+
+    it('프로필 이미지 URL만 전달하면 이미지 관계를 upsert한다', async () => {
+      await service.updateUserInfo(userId, { profileImageUrl });
+
+      expect(updateUser).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: {
+          profilePic: {
+            upsert: {
+              create: {
+                image: {
+                  create: { imageUrl: profileImageUrl },
+                },
+              },
+              update: {
+                image: {
+                  update: { imageUrl: profileImageUrl },
+                },
+              },
+            },
+          },
+        },
+        select: responseSelect,
+      });
+    });
+
+    it('한 필드가 null이면 유효한 다른 필드만 수정한다', async () => {
+      await service.updateUserInfo(userId, {
+        name: null as unknown as string,
+        profileImageUrl,
+      });
+
+      const updateArgument = updateUser.mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      };
+      expect(updateArgument.data).not.toHaveProperty('name');
+      expect(updateArgument.data).toHaveProperty('profilePic');
+    });
+
+    it('수정할 값이 없으면 BAD_REQUEST_NULL_VALUE를 던진다', async () => {
+      try {
+        await service.updateUserInfo(userId, {});
+        throw new Error('Expected BAD_REQUEST_NULL_VALUE BusinessException');
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(BusinessException);
+
+        if (!(error instanceof BusinessException)) {
+          throw error;
+        }
+
+        expect(error.definition.code).toBe('BAD_REQUEST_NULL_VALUE');
+      }
+
+      expect(updateUser).not.toHaveBeenCalled();
+    });
   });
 });

@@ -12,3 +12,9 @@ export class UserInfoResponseDto {
   visitCount!: number;
   totalTradeCount!: number;
 }
+
+export class UserInfoUpdateResponseDto {
+  id!: number;
+  name!: string;
+  profileImageUrl!: string | null;
+}

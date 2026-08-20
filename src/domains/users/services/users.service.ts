@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { UserInfoResponseDto } from '../dto/response/users-info-response.dto';
+import {
+  UserInfoResponseDto,
+  UserInfoUpdateResponseDto,
+} from '../dto/response/users-info-response.dto';
 import { BusinessException } from 'src/common/exception/businessException';
-import { UsersInfoErrorCode } from '../error/users-info.error';
+import {
+  UsersInfoErrorCode,
+  UsersInfoUpdateErrorCode,
+} from '../error/users-info.error';
+import { UpdateUsersInfoDto } from '../dto/request/update-users-info.dto';
 
 @Injectable()
 export class UsersService {
@@ -70,6 +77,69 @@ export class UsersService {
       },
       visitCount: user.visitCount,
       totalTradeCount: totalTradesCount,
+    };
+  }
+
+  async updateUserInfo(
+    userId: number,
+    dto: UpdateUsersInfoDto,
+  ): Promise<UserInfoUpdateResponseDto> {
+    // 사용자가 빈칸을 입력한 경우 예외처리
+    if (dto.name == null && dto.profileImageUrl == null) {
+      throw new BusinessException(
+        UsersInfoUpdateErrorCode.BAD_REQUEST_NULL_VALUE,
+      );
+    }
+
+    // name과 프로필 url로 db 최신화
+    const updatedUser = await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        ...(dto.name != null && { name: dto.name }),
+        ...(dto.profileImageUrl != null && {
+          profilePic: {
+            upsert: {
+              // 기존 프로필 이미지가 없는 경우
+              create: {
+                image: {
+                  create: {
+                    imageUrl: dto.profileImageUrl,
+                  },
+                },
+              },
+
+              // 기존 프로필 이미지가 있는 경우
+              update: {
+                image: {
+                  update: {
+                    imageUrl: dto.profileImageUrl,
+                  },
+                },
+              },
+            },
+          },
+        }),
+      },
+      select: {
+        id: true,
+        name: true,
+        profilePic: {
+          select: {
+            image: {
+              select: {
+                imageUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      profileImageUrl: updatedUser.profilePic?.image.imageUrl ?? null,
     };
   }
 }
