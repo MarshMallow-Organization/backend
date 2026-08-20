@@ -15,6 +15,7 @@ import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dt
 import { DiariesRepository } from '../repositories/diaries.repository';
 import { buildUpdateDiaryCommand } from '../models/update-diary.model';
 import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
+import { DeleteDiaryResponseDto } from '../dto/response/delete-diary-response.dto';
 import { DiaryPrefillResponseDto } from '../dto/response/diary-prefill-response.dto';
 import { DiaryType } from '../dto/request/post-diaries.dto';
 
@@ -24,6 +25,25 @@ const DEFAULT_SIZE = 10;
 @Injectable()
 export class DiariesService {
   constructor(private readonly diariesRepository: DiariesRepository) {}
+
+  async deleteDiary(
+    userId: number,
+    diaryId: number,
+  ): Promise<DeleteDiaryResponseDto> {
+    const deleted = await this.diariesRepository.softDeleteDiary(
+      userId,
+      diaryId,
+    );
+
+    if (deleted === null) {
+      throw new BusinessException(DiariesErrorCode.DIARY_NOT_FOUND, {
+        userId,
+        diaryId,
+      });
+    }
+
+    return deleted;
+  }
 
   async getDiaryPrefill(
     userId: number,
