@@ -217,7 +217,7 @@ export class PrismaDiariesRepository extends DiariesRepository {
         });
       }
 
-      if (order.tradeType !== command.type) {
+      if (this.toDiaryType(order.tradeType) !== command.type) {
         throw new BusinessException(DiariesErrorCode.ORDER_TYPE_MISMATCH, {
           orderId: command.orderId,
           orderType: order.tradeType,
@@ -340,7 +340,7 @@ export class PrismaDiariesRepository extends DiariesRepository {
         });
       }
 
-      if (diary.type !== command.type) {
+      if (this.toDiaryType(diary.type) !== command.type) {
         throw new BusinessException(DiariesErrorCode.INVALID_DIARY_UPDATE, {
           diaryId,
           diaryType: diary.type,
