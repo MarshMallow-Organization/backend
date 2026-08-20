@@ -79,6 +79,18 @@ export class GetDiariesQueryDto {
 
 수동 데코레이터가 있으면 해당 속성에 대해 자동 생성된 값보다 명시한 옵션이 우선한다. 현재 `PostDiariesDto`의 BUY/SELL 조건부 필드와 `DiaryPreviewDto`의 nullable 필드가 이에 해당한다.
 
+### `@example` 값에 공백이 있으면 따옴표로 감싼다
+
+플러그인은 따옴표 없는 `@example` 값을 첫 공백에서 끊어 읽고, 그 결과를 조용히 버린다. 오류 없이 example만 사라지므로 빌드 로그로는 알 수 없다.
+
+```typescript
+/** @example 안전형 투자 */   // ✗ example이 생성되지 않는다
+/** @example "안전형 투자" */ // ✓
+/** @example 005930 */        // ✓ 공백이 없으면 그대로 둬도 된다
+```
+
+한글 문장을 예시로 쓰는 오류 메시지와 계좌 이름이 주로 걸린다. 확실하지 않으면 감싸는 쪽이 안전하고, 아래 검증 방법대로 생성된 스키마에서 `example` 유무를 직접 확인한다.
+
 `class-validator`는 런타임 검증, Swagger 메타데이터는 문서화를 담당한다. 문서에 제약이 표시되더라도 검증 데코레이터를 생략해서는 안 된다.
 
 ## Controller 작성 규칙
@@ -122,6 +134,15 @@ Diaries는 현재 JWT가 아니라 `StubAuthGuard`를 사용하므로 `@ApiBeare
 })
 ```
 
+엔드포인트마다 같은 형태가 반복되므로 `src/common/swagger/dataResponse.schema.ts`의 `dataSchema()`를 쓴다. 위와 같은 스키마를 만들어 준다.
+
+```typescript
+@ApiExtraModels(PortfolioListResponseDto)
+@ApiOkResponse({ schema: dataSchema(PortfolioListResponseDto) })
+```
+
+어느 쪽을 쓰든 참조하는 DTO를 Controller의 `@ApiExtraModels()`에 등록해야 한다. `$ref`만 있고 등록이 빠지면 문서에 스키마 본문이 실리지 않는다.
+
 오류 응답은 인터셉터로 감싸지지 않고 다음 형태를 사용한다.
 
 ```json
@@ -132,7 +153,7 @@ Diaries는 현재 JWT가 아니라 `StubAuthGuard`를 사용하므로 `@ApiBeare
 }
 ```
 
-Diaries Controller는 이 형식을 `DiaryErrorResponseDto`로 등록한다.
+오류 응답 DTO는 도메인별로 둔다. Diaries는 `DiaryErrorResponseDto`, 가상계좌는 `PortfolioErrorResponseDto`, 관심종목은 `FavoriteStockErrorResponseDto`다. 형태는 셋 다 같지만 Controller와 에러 카탈로그를 리소스 단위로 나눈 기준을 따랐다. 공용 DTO 하나로 합칠지는 남은 도메인이 다 올라온 뒤에 판단한다.
 
 ## Diaries 적용 범위
 
@@ -146,6 +167,33 @@ Diaries Controller는 이 형식을 `DiaryErrorResponseDto`로 등록한다.
 
 서비스·Repository 내부에서만 사용하는 `*.model.ts` 타입은 HTTP API 계약이 아니므로 Swagger 대상에서 제외한다. 비어 있고 어떤 API에서도 사용하지 않는 `update-diary.dto.ts` 역시 현재 생성되는 엔드포인트가 없어 문서에 노출되지 않는다.
 
+## 가상계좌·관심종목 적용 범위
+
+`Portfolios` 태그(`src/domains/assets`)에 7개, `Favorite Stocks` 태그(`src/domains/users`)에 4개가 문서화되어 있다.
+
+| 엔드포인트 | 성공 | 오류 |
+| --- | --- | --- |
+| `GET /assets/portfolios` | 200 | 401 |
+| `POST /assets/portfolios` | 201 | 400, 401, 409 |
+| `PATCH /assets/portfolios/order` | 200 | 400, 401 |
+| `PATCH /assets/portfolios/{portfolioId}` | 200 | 400, 401, 404, 409 |
+| `DELETE /assets/portfolios/{portfolioId}` | 200 | 400, 401, 404 |
+| `POST /assets/portfolios/{portfolioId}/stocks` | 201 | 400, 401, 404, 409 |
+| `DELETE /assets/portfolios/{portfolioId}/stocks/{stockCode}` | 200 | 400, 401, 404 |
+| `GET /users/me/favorite-stocks` | 200 | 401 |
+| `POST /users/me/favorite-stocks` | 201 | 400, 401, 409 |
+| `GET /users/me/favorite-stocks/{stockCode}` | 200 | 400, 401 |
+| `DELETE /users/me/favorite-stocks/{stockCode}` | 200 | 400, 401, 404 |
+
+같은 상태 코드에 오류가 여럿이면 `@ApiNotFoundResponse` 하나에 코드를 모두 적는다. 예를 들어 종목 제거의 404는 계좌가 없는 `PORTFOLIO_NOT_FOUND`와 계좌는 있으나 종목이 없는 `PORTFOLIO_STOCK_NOT_FOUND`로 나뉘고, 프론트가 전자는 목록 새로고침·후자는 무시로 다르게 처리한다.
+
+명세와 다르게 문서화한 곳이 둘 있다. 구현을 기준으로 적었다.
+
+- `DELETE /assets/portfolios/{portfolioId}`의 409: 명세에는 있으나 서비스가 소속 종목을 먼저 지우고 계좌를 지우므로 외래 키 충돌이 나지 않는다.
+- `POST /users/me/favorite-stocks`의 404(`STOCK_NOT_FOUND`): 종목 마스터가 없어 실재 여부를 판정할 수 없다. 종목 조회 서비스가 연동되면 추가한다.
+
+`GET /users/me/favorite-stocks/{stockCode}`는 미등록도 200이다. 리소스를 가져오는 요청이 아니라 등록 여부를 묻는 질의라서 미등록 역시 정상 응답이고, 이때 `favoriteStock`이 `null`이 된다.
+
 ## 검증 방법
 
 ```bash
@@ -155,11 +203,20 @@ yarn dev
 
 빌드 후 Swagger UI 또는 `/swagger-json`에서 다음을 확인한다.
 
-- `Diaries` 태그 아래 GET/POST가 표시되는가?
+- 담당 태그 아래 엔드포인트가 빠짐없이 표시되는가?
 - Query와 Body의 필수 여부, enum, 배열, 최솟값·최댓값이 맞는가?
 - 성공 응답이 `{ data: ... }` 구조인가?
 - nullable 속성이 `null`을 허용하는가?
 - 400/401/404/409 응답과 오류 DTO가 표시되는가?
+- 적어 둔 `@example`이 실제로 스키마에 실렸는가? (공백이 있으면 조용히 누락된다)
 - `x-stub-user-id`를 입력해 `Try it out`을 실행할 수 있는가?
+
+DB 없이 스키마만 확인하려면 서버를 띄우지 않고 문서 객체를 뽑아 볼 수도 있다. `PrismaService`는 지연 연결이라 `NestFactory.create()`만으로는 DB에 붙지 않는다.
+
+```javascript
+const app = await NestFactory.create(AppModule, { logger: false });
+const doc = SwaggerModule.createDocument(app, config);
+console.log(JSON.stringify(doc.components.schemas, null, 2));
+```
 
 Swagger 문서는 API 계약이다. DTO나 Controller를 변경할 때 JSDoc, 명시적 Swagger 옵션과 오류 응답도 함께 갱신한다.

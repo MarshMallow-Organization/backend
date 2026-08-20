@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
@@ -18,7 +19,10 @@ export class UpdatePortfolioNameDto {
    * 생성과 동일하게 앞뒤 공백을 잘라낸 뒤 검증한다. 그러지 않으면 '   '가
    * IsNotEmpty를 통과하고, '안전형'과 '안전형 '이 다른 이름으로 취급돼
    * 중복 검사가 뚫린다.
+   *
+   * @example "공격형 투자"
    */
+  @ApiProperty({ minLength: 1, maxLength: NAME_MAX_LENGTH })
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,

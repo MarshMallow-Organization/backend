@@ -6,10 +6,18 @@
  * 그것뿐이다.
  */
 export class PortfolioNameUpdatedDto {
+  /** 가상계좌 ID.
+   * @example 12
+   */
   id: number;
 
+  /** 변경된 이름.
+   * @example "공격형 투자"
+   */
   name: string;
 
-  /** ISO 8601. Prisma의 Date를 서비스에서 문자열로 변환해 담는다. */
+  /** ISO 8601. Prisma의 Date를 서비스에서 문자열로 변환해 담는다.
+   * @example 2026-07-24T11:30:00.000Z
+   */
   updatedAt: string;
 }
