@@ -42,4 +42,19 @@ export const DiariesErrorCode = defineErrorCodes({
     status: HttpStatus.BAD_REQUEST,
     message: '조회 조건이 올바르지 않습니다.',
   },
+  EMPTY_UPDATE_REQUEST: {
+    code: 'EMPTY_UPDATE_REQUEST',
+    status: HttpStatus.BAD_REQUEST,
+    message: '수정할 필드가 없습니다.',
+  },
+  INVALID_DIARY_UPDATE: {
+    code: 'INVALID_DIARY_UPDATE',
+    status: HttpStatus.BAD_REQUEST,
+    message: '수정할 수 없는 필드가 포함되어 있습니다.',
+  },
+  INVALID_FIELD_VALUE: {
+    code: 'INVALID_FIELD_VALUE',
+    status: HttpStatus.BAD_REQUEST,
+    message: '필드 값 또는 범위가 올바르지 않습니다.',
+  },
 });

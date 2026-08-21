@@ -1,0 +1,28 @@
+export enum DiaryType {
+  BUY = 'BUY',
+  SELL = 'SELL',
+}
+
+export enum GoalHoldPeriod {
+  SHORT_TERM = 'SHORT_TERM',
+  MID_TERM = 'MID_TERM',
+  LONG_TERM = 'LONG_TERM',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum SellReasonCode {
+  GOAL_REACHED = 'GOAL_REACHED',
+  STOP_LOSS = 'STOP_LOSS',
+  REBALANCING = 'REBALANCING',
+  PROFIT_TAKING = 'PROFIT_TAKING',
+  OTHER = 'OTHER',
+}
+
+export enum GoalEvaluationCode {
+  KEPT_GOAL = 'KEPT_GOAL',
+  SOLD_TOO_EARLY = 'SOLD_TOO_EARLY',
+  SOLD_TOO_LATE = 'SOLD_TOO_LATE',
+  EMOTIONAL_SELL = 'EMOTIONAL_SELL',
+  AS_PLANNED = 'AS_PLANNED',
+  OTHER = 'OTHER',
+}
