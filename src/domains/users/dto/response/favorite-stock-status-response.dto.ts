@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { FavoriteStockItemDto } from './favorite-stock-item.dto';
 
 /**
@@ -14,7 +15,16 @@ import { FavoriteStockItemDto } from './favorite-stock-item.dto';
  * non-null임이 보장된다.
  */
 export class FavoriteStockStatusResponseDto {
+  /** 관심종목으로 등록돼 있는지 여부.
+   * @example true
+   */
   isFavorite: boolean;
 
+  /** 등록된 관심종목. isFavorite이 false면 null이다. */
+  @ApiProperty({
+    type: FavoriteStockItemDto,
+    nullable: true,
+    description: '등록된 관심종목. isFavorite이 false면 null이다.',
+  })
   favoriteStock: FavoriteStockItemDto | null;
 }

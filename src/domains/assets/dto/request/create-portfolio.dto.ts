@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
@@ -12,7 +13,10 @@ export class CreatePortfolioDto {
    * 앞뒤 공백을 잘라낸 뒤(trim) 검증한다. 그러지 않으면 '안전형'과 '안전형 '이 다른 이름으로 취급된다.
    * ValidationPipe(whitelist)가 정의되지 않은 필드는 잘라내므로 여기 없는 값은 서비스까지 오지 않는다.
    * 중간 공백은 확인하지 않는다.
+   *
+   * @example "안전형 투자"
    */
+  @ApiProperty({ minLength: 1, maxLength: NAME_MAX_LENGTH })
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,

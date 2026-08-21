@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsInt } from 'class-validator';
 
@@ -16,6 +17,12 @@ export class ReorderPortfoliosDto {
    * 변환 없이 두면 문자열 "1"과 숫자 1의 판정이 갈린다. @Type(() => Number)로
    * transform 단계에서 맞춰 검증 기준을 하나로 둔다.
    */
+  @ApiProperty({
+    type: [Number],
+    minItems: 1,
+    maxItems: MAX_PORTFOLIO_COUNT,
+    example: [14, 12, 13],
+  })
   @IsArray()
   @ArrayNotEmpty({
     message: 'portfolioIds는 비어 있지 않은 정수 배열이어야 합니다.',
