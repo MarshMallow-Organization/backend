@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BusinessException } from 'src/common/exception/businessException';
-import { TossApiService } from 'src/domains/api/toss-api.service';
-import type { TossStock } from 'src/domains/api/types/toss-stock.type';
+import { TossClient } from 'src/domains/api/clients/toss/toss.client';
+import type { TossStock } from 'src/domains/api/clients/toss/toss.types';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MarketsService } from './markets.service';
 
@@ -36,29 +36,12 @@ describe('MarketsService', () => {
   const domesticStock: TossStock = {
     symbol: stockCode,
     name: '삼성전자',
-    englishName: 'SamsungElec',
-    isinCode: 'KR7005930003',
-    market: 'KOSPI',
-    securityType: 'STOCK',
-    isCommonShare: true,
-    status: 'ACTIVE',
-    currency: 'KRW',
-    listDate: '1975-06-11',
-    delistDate: null,
-    sharesOutstanding: '5919637922',
-    leverageFactor: null,
-    koreanMarketDetail: {
-      liquidationTrading: false,
-      nxtSupported: true,
-      krxTradingSuspended: false,
-      nxtTradingSuspended: false,
-    },
   };
 
   const findUnique = jest.fn<
     (where: unknown) => Promise<HiddenStockLookup | null>
   >(() => Promise.resolve(null));
-  const getStockfromToss = jest.fn<
+  const getStock = jest.fn<
     (stockCode: string) => Promise<{ result: TossStock[] }>
   >(() => Promise.resolve({ result: [domesticStock] }));
 
@@ -67,16 +50,16 @@ describe('MarketsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     findUnique.mockResolvedValue(null);
-    getStockfromToss.mockResolvedValue({ result: [domesticStock] });
+    getStock.mockResolvedValue({ result: [domesticStock] });
 
     const prisma = {
       hiddenStock: { findUnique },
     } as unknown as PrismaService;
-    const tossApiService = {
-      getStockfromToss,
-    } as unknown as TossApiService;
+    const tossClient = {
+      getStock,
+    } as unknown as TossClient;
 
-    service = new MarketsService(prisma, tossApiService);
+    service = new MarketsService(prisma, tossClient);
   });
 
   it('활성 숨김 종목이면 DB의 숨김 정보를 반환하고 토스 API를 호출하지 않는다', async () => {
@@ -96,7 +79,7 @@ describe('MarketsService', () => {
         },
       },
     });
-    expect(getStockfromToss).not.toHaveBeenCalled();
+    expect(getStock).not.toHaveBeenCalled();
     expect(result).toEqual({
       symbol: stockCode,
       name: '삼성전자',
@@ -106,12 +89,13 @@ describe('MarketsService', () => {
     });
   });
 
-  it('숨김 종목이 아니면 토스 API의 종목 상세 정보를 반환한다', async () => {
+  it('숨김 종목이 아니면 토스 API의 종목 정보를 반환한다', async () => {
     const result = await service.getStock(userId, stockCode);
 
-    expect(getStockfromToss).toHaveBeenCalledWith(stockCode);
+    expect(getStock).toHaveBeenCalledWith(stockCode);
     expect(result).toEqual({
-      ...domesticStock,
+      symbol: stockCode,
+      name: '삼성전자',
       isHidden: false,
     });
   });
@@ -125,34 +109,16 @@ describe('MarketsService', () => {
 
     const result = await service.getStock(userId, stockCode);
 
-    expect(getStockfromToss).toHaveBeenCalledWith(stockCode);
+    expect(getStock).toHaveBeenCalledWith(stockCode);
     expect(result.isHidden).toBe(false);
   });
 
   it('토스 API에서 종목을 찾지 못하면 NOT_FOUND_STOCK을 던진다', async () => {
-    getStockfromToss.mockResolvedValue({ result: [] });
+    getStock.mockResolvedValue({ result: [] });
 
     await expectBusinessException(
       service.getStock(userId, stockCode),
       'NOT_FOUND_STOCK',
     );
-  });
-
-  it('해외 종목이면 koreanMarketDetail의 null을 그대로 반환한다', async () => {
-    const foreignStock: TossStock = {
-      ...domesticStock,
-      symbol: 'AAPL',
-      name: '애플',
-      englishName: 'APPLE INC',
-      isinCode: 'US0378331005',
-      market: 'NASDAQ',
-      currency: 'USD',
-      koreanMarketDetail: null,
-    };
-    getStockfromToss.mockResolvedValue({ result: [foreignStock] });
-
-    const result = await service.getStock(userId, foreignStock.symbol);
-
-    expect(result.koreanMarketDetail).toBeNull();
   });
 });

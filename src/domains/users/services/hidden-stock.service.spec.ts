@@ -1,5 +1,5 @@
 import { BusinessException } from '../../../common/exception/businessException';
-import { TossApiService } from '../../api/toss-api.service';
+import { TossClient } from '../../api/clients/toss/toss.client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 import { HiddenStockService } from './hidden-stock.service';
@@ -41,7 +41,7 @@ describe('HiddenStockService', () => {
       hiddenUntil: new Date(dto.hiddenUntil),
     }),
   );
-  const getStockfromToss = jest.fn(() =>
+  const getStock = jest.fn(() =>
     Promise.resolve({
       result: [{ symbol: dto.stockCode, name: '삼성전자' }],
     }),
@@ -52,24 +52,24 @@ describe('HiddenStockService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     findUnique.mockResolvedValue(null);
-    getStockfromToss.mockResolvedValue({
+    getStock.mockResolvedValue({
       result: [{ symbol: dto.stockCode, name: '삼성전자' }],
     });
 
     const prisma = {
       hiddenStock: { findUnique, create },
     } as unknown as PrismaService;
-    const tossApiService = {
-      getStockfromToss,
-    } as unknown as TossApiService;
+    const tossClient = {
+      getStock,
+    } as unknown as TossClient;
 
-    service = new HiddenStockService(prisma, tossApiService);
+    service = new HiddenStockService(prisma, tossClient);
   });
 
   it('존재하는 종목을 숨김 테이블에 저장하고 응답 값을 반환한다', async () => {
     const result = await service.hideStock(userId, dto);
 
-    expect(getStockfromToss).toHaveBeenCalledWith(dto.stockCode);
+    expect(getStock).toHaveBeenCalledWith(dto.stockCode);
     expect(findUnique).toHaveBeenCalledWith({
       where: {
         userId_stockCode: {
@@ -95,7 +95,7 @@ describe('HiddenStockService', () => {
   });
 
   it('토스 API에서 종목을 찾지 못하면 NOT_FOUND_STOCK을 던진다', async () => {
-    getStockfromToss.mockResolvedValue({ result: [] });
+    getStock.mockResolvedValue({ result: [] });
 
     await expectBusinessException(
       service.hideStock(userId, dto),
