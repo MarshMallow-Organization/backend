@@ -11,12 +11,14 @@ import { CreatePortfolioDto } from '../dto/request/create-portfolio.dto';
 import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
 import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
 import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
+import { PortfolioDetailResponseDto } from '../dto/response/portfolio-detail-response.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
 import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
 import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dto';
 import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-removed.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
+import { HoldingsProvider } from './holdings.provider';
 
 /** 사용자당 가상계좌는 최대 4개. */
 const MAX_PORTFOLIO_COUNT = 4;
@@ -41,11 +43,27 @@ const SUMMARY_SELECT = {
   createdAt: true,
 } as const;
 
+/**
+ * 수익률은 퍼센트, 소수 2자리다.
+ *
+ * 부동소수점 오차 때문에 곱했다 나누는 과정에서 8.199999999999999가
+ * 나올 수 있어 반올림 전에 한 번 정리한다. Number.EPSILON을 더하는
+ * 흔한 요령은 음수에서 반대로 작동해 쓰지 않는다.
+ */
+const toPercent = (ratio: number): number =>
+  Math.round(Number((ratio * 100).toFixed(6)) * 100) / 100;
+
+/** 명세상 보유 수량이 1주 이상인 종목만 응답에 담는다. */
+const MIN_HOLDING_QUANTITY = 1;
+
 @Injectable()
 export class PortfoliosService {
   private readonly logger = new CustomLogger(PortfoliosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly holdingsProvider: HoldingsProvider,
+  ) {}
 
   /**
    * 사용자의 가상계좌 목록을 조회한다.
@@ -68,6 +86,96 @@ export class PortfoliosService {
 
       /** 목록이 비어 있어도 항상 내려준다. 프론트가 '추가' 버튼을 막는 기준. */
       maxCount: MAX_PORTFOLIO_COUNT,
+    };
+  }
+
+  /**
+   * 가상계좌 상세와 소속 보유 종목을 조회한다.
+   *
+   * 등록된 종목코드는 DB에 있지만 수량·평균단가는 없다. 가상계좌는
+   * 실보유 종목을 묶는 폴더라, 두 곳을 stockCode로 맞춰야 한 건이 된다.
+   *
+   * 등록됐지만 보유하지 않는 종목은 빠진다. 전량 매도하면 토스 응답에서
+   * 사라지므로 별도 조건 없이 교집합만으로 걸러진다. 등록 자체는 남아
+   * 있어 재매수하면 다시 나타난다.
+   */
+  async findPortfolioDetail(
+    userId: number,
+    portfolioId: number,
+  ): Promise<PortfolioDetailResponseDto> {
+    const portfolio = await this.prisma.virtualPortfolio.findFirst({
+      where: { id: portfolioId, userId },
+      select: SUMMARY_SELECT,
+    });
+
+    /**
+     * findOwnedOrThrow를 쓰지 않는다. 저쪽은 존재 확인만 하고 버려서
+     * 여기서 필요한 name·sortOrder를 다시 조회해야 한다.
+     */
+    if (!portfolio) {
+      throw new BusinessException(PortfoliosErrorCode.PORTFOLIO_NOT_FOUND, {
+        userId,
+        portfolioId,
+      });
+    }
+
+    const registered = await this.prisma.virtualPortfolioStock.findMany({
+      where: { userId, virtualPortfolioId: portfolioId },
+      select: { stockCode: true },
+    });
+
+    /**
+     * 등록 종목이 없으면 외부 호출 자체를 건너뛴다. 어차피 교집합이
+     * 비어 결과가 같은데, 계좌를 열어볼 때마다 토스를 부를 이유가 없다.
+     */
+    if (registered.length === 0) {
+      return { ...toSummary(portfolio), totalReturnRate: 0, holdings: [] };
+    }
+
+    const registeredCodes = new Set(registered.map((row) => row.stockCode));
+    const allHoldings = await this.holdingsProvider.getHoldings(userId);
+
+    const holdings = allHoldings
+      .filter(
+        (holding) =>
+          registeredCodes.has(holding.stockCode) &&
+          holding.quantity >= MIN_HOLDING_QUANTITY,
+      )
+      .map((holding) => {
+        const diff = holding.currentPrice - holding.avgBuyPrice;
+
+        return {
+          ...holding,
+          evaluationAmount: Math.round(holding.currentPrice * holding.quantity),
+          unrealizedProfit: Math.round(diff * holding.quantity),
+
+          /**
+           * avgBuyPrice가 0이면 수익률을 정의할 수 없다. 무상증자로 받은
+           * 주식이 0원으로 들어오면 실제로 생긴다. 0으로 두면 Infinity가
+           * JSON에 null로 나가 프론트가 깨진다.
+           */
+          returnRate:
+            holding.avgBuyPrice > 0 ? toPercent(diff / holding.avgBuyPrice) : 0,
+        };
+      });
+
+    /**
+     * 계좌 수익률은 금액가중이다. 종목별 returnRate의 단순평균을 쓰면
+     * 1주짜리 종목이 100주짜리와 같은 무게를 갖는다.
+     */
+    const totalCost = holdings.reduce(
+      (sum, holding) => sum + holding.avgBuyPrice * holding.quantity,
+      0,
+    );
+    const totalProfit = holdings.reduce(
+      (sum, holding) => sum + holding.unrealizedProfit,
+      0,
+    );
+
+    return {
+      ...toSummary(portfolio),
+      totalReturnRate: totalCost > 0 ? toPercent(totalProfit / totalCost) : 0,
+      holdings,
     };
   }
 
@@ -236,7 +344,7 @@ export class PortfoliosService {
    * 가상계좌 이름을 변경한다. sortOrder는 건드리지 않는다.
    *
    * 소유권 확인과 이름 중복 확인을 한 트랜잭션에 넣는다. 중복 판정은
-   * 생성과 같은 이유로 사전 조회가 필요하다 — 그냥 update하면
+   * 생성과 같은 이유로 사전 조회가 필요하다. 그냥 update하면
    * PrismaExceptionFilter가 DB_UNIQUE_CONSTRAINT를 먼저 돌려준다.
    */
   async updatePortfolioName(

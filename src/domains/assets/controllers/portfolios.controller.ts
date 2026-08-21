@@ -33,6 +33,7 @@ import { ReorderPortfoliosDto } from '../dto/request/reorder-portfolios.dto';
 import { UpdatePortfolioNameDto } from '../dto/request/update-portfolio-name.dto';
 import { PortfolioDeletedDto } from '../dto/response/portfolio-deleted.dto';
 import { PortfolioErrorResponseDto } from '../dto/response/portfolio-error-response.dto';
+import { PortfolioDetailResponseDto } from '../dto/response/portfolio-detail-response.dto';
 import { PortfolioListResponseDto } from '../dto/response/portfolio-list-response.dto';
 import { PortfolioNameUpdatedDto } from '../dto/response/portfolio-name-updated.dto';
 import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dto';
@@ -117,6 +118,20 @@ export class PortfoliosController {
     @Body() dto: CreatePortfolioDto,
   ): Promise<PortfolioSummaryDto> {
     return this.portfoliosService.createPortfolio(user.id, dto);
+  }
+
+  /**
+   * 목록 조회와 달리 소속 보유 종목까지 함께 내려준다.
+   *
+   * 인자 없는 @Get()보다 아래에 둔다. 경로가 겹치지는 않지만, 구체적인
+   * 경로를 먼저 선언하는 이 파일의 순서 규칙을 지킨다.
+   */
+  @Get(':portfolioId')
+  findPortfolioDetail(
+    @CurrentUser() user: AuthUser,
+    @Param('portfolioId', ParseIntPipe) portfolioId: number,
+  ): Promise<PortfolioDetailResponseDto> {
+    return this.portfoliosService.findPortfolioDetail(user.id, portfolioId);
   }
 
   /**
