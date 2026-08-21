@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { BusinessException } from '../../../common/exception/businessException';
 import { GetDiariesQueryDto } from '../dto/request/get-diaries-query.dto';
 import { DiariesRepository } from '../repositories/diaries.repository';
@@ -13,6 +14,7 @@ import {
 import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
 import { DiaryOrderSnapshot } from '../models/diary-order-snapshot.model';
 import { DiariesService } from './diaries.service';
+import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dto';
 import { BuyDiaryDetailDto } from '../dto/response/diary-detail-response.dto';
 import { DiaryPrefillSnapshot } from '../models/diary-prefill-snapshot.model';
 
@@ -92,6 +94,9 @@ describe('DiariesService', () => {
       findPrefillByOrderId,
       findPage,
       ...createDiaryRepository,
+      findActiveDiaryForUpdate: jest.fn(),
+      updateDiary: jest.fn(),
+      softDeleteDiary: jest.fn(),
     };
 
     service = new DiariesService(diariesRepository);
@@ -525,6 +530,118 @@ describe('DiariesService', () => {
         'DIARY_ALREADY_EXISTS',
       );
       expect(createDiaryRepository.createDiary).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateDiary', () => {
+    const updated: UpdateDiaryResponseDto = {
+      diaryId: 1,
+      orderId: 12,
+      type: DiaryType.BUY,
+      price: 72_500,
+      quantity: 7,
+      totalAmount: 507_500,
+      date: '2026-08-05',
+      emotion: 3,
+      buyReason: '수정된 매수 이유',
+      goalPrice: null,
+      memo: null,
+      updatedAt: '2026-08-05T01:10:00.000Z',
+    };
+
+    beforeEach(() => {
+      diariesRepository.findActiveDiaryForUpdate.mockResolvedValue({
+        diaryId: 1,
+        type: DiaryType.BUY,
+        goalHoldPeriod: GoalHoldPeriod.MID_TERM,
+        customGoalHoldPeriod: null,
+      });
+      diariesRepository.updateDiary.mockResolvedValue(updated);
+    });
+
+    it('전달된 필드와 null 삭제 요청을 repository에 그대로 전달한다', async () => {
+      const request = { emotion: 3, goalPrice: null, memo: null };
+
+      await expect(service.updateDiary(userId, 1, request)).resolves.toEqual(
+        updated,
+      );
+      expect(diariesRepository.findActiveDiaryForUpdate).toHaveBeenCalledWith(
+        userId,
+        1,
+      );
+      expect(diariesRepository.updateDiary).toHaveBeenCalledWith(userId, 1, {
+        type: DiaryType.BUY,
+        ...request,
+      });
+    });
+
+    it('빈 요청이면 EMPTY_UPDATE_REQUEST를 던지고 조회하지 않는다', async () => {
+      await expectBusinessException(
+        service.updateDiary(userId, 1, {}),
+        'EMPTY_UPDATE_REQUEST',
+      );
+      expect(diariesRepository.findActiveDiaryForUpdate).not.toHaveBeenCalled();
+    });
+
+    it('활성 상태의 본인 일기가 없으면 DIARY_NOT_FOUND를 던진다', async () => {
+      diariesRepository.findActiveDiaryForUpdate.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.updateDiary(userId, 1, { emotion: 3 }),
+        'DIARY_NOT_FOUND',
+      );
+      expect(diariesRepository.updateDiary).not.toHaveBeenCalled();
+    });
+
+    it('BUY 일기에 SELL 필드를 보내면 INVALID_DIARY_UPDATE를 던진다', async () => {
+      await expectBusinessException(
+        service.updateDiary(userId, 1, {
+          sellReasonCode: SellReasonCode.PROFIT_TAKING,
+        }),
+        'INVALID_DIARY_UPDATE',
+      );
+      expect(diariesRepository.updateDiary).not.toHaveBeenCalled();
+    });
+
+    it('CUSTOM 보유 기간인데 prefill과 요청 모두 직접 입력값이 없으면 실패한다', async () => {
+      await expectBusinessException(
+        service.updateDiary(userId, 1, {
+          goalHoldPeriod: GoalHoldPeriod.CUSTOM,
+        }),
+        'INVALID_FIELD_VALUE',
+      );
+      expect(diariesRepository.updateDiary).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteDiary', () => {
+    const deleted = {
+      diaryId: 1,
+      deleted: true as const,
+      deletedAt: '2026-08-16T01:15:00.000Z',
+    };
+
+    it('본인 일기를 soft delete하고 삭제 결과를 반환한다', async () => {
+      diariesRepository.softDeleteDiary.mockResolvedValue(deleted);
+
+      await expect(service.deleteDiary(userId, 1)).resolves.toEqual(deleted);
+      expect(diariesRepository.softDeleteDiary).toHaveBeenCalledWith(userId, 1);
+    });
+
+    it('이미 삭제된 본인 일기도 기존 삭제 시각으로 같은 결과를 반환한다', async () => {
+      diariesRepository.softDeleteDiary.mockResolvedValue(deleted);
+
+      await expect(service.deleteDiary(userId, 1)).resolves.toEqual(deleted);
+      expect(diariesRepository.softDeleteDiary).toHaveBeenCalledTimes(1);
+    });
+
+    it('일기가 없거나 소유자가 다르면 DIARY_NOT_FOUND를 던진다', async () => {
+      diariesRepository.softDeleteDiary.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.deleteDiary(userId, 999),
+        'DIARY_NOT_FOUND',
+      );
     });
   });
 });

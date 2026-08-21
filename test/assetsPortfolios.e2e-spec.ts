@@ -34,6 +34,18 @@ interface PortfolioDeleted {
   deleted: boolean;
 }
 
+interface PortfolioStockAdded {
+  portfolioId: number;
+  stockCode: string;
+  addedAt: string;
+}
+
+interface PortfolioStockRemoved {
+  portfolioId: number;
+  stockCode: string;
+  removed: boolean;
+}
+
 interface ErrorBody {
   code: string;
   message: string;
@@ -95,6 +107,25 @@ describe('가상계좌 (assets/portfolios)', () => {
   const deletePortfolio = (portfolioId: number, userId = TEST_USER_ID) =>
     request(app.getHttpServer())
       .delete(`${PATH}/${portfolioId}`)
+      .set(asUser(userId));
+
+  const addStock = (
+    portfolioId: number,
+    stockCode: string,
+    userId = TEST_USER_ID,
+  ) =>
+    request(app.getHttpServer())
+      .post(`${PATH}/${portfolioId}/stocks`)
+      .set(asUser(userId))
+      .send({ stockCode });
+
+  const removeStock = (
+    portfolioId: number,
+    stockCode: string,
+    userId = TEST_USER_ID,
+  ) =>
+    request(app.getHttpServer())
+      .delete(`${PATH}/${portfolioId}/stocks/${stockCode}`)
       .set(asUser(userId));
 
   /** 존재하지 않는 ID. 각 테스트가 만드는 계좌 수를 훨씬 넘는 값이면 된다. */
@@ -482,7 +513,11 @@ describe('가상계좌 (assets/portfolios)', () => {
       const id = await createOne('안전형');
 
       await prisma.virtualPortfolioStock.create({
-        data: { virtualPortfolioId: id, stockCode: '005930' },
+        data: {
+          userId: TEST_USER_ID,
+          virtualPortfolioId: id,
+          stockCode: '005930',
+        },
       });
 
       /** FK가 Restrict라 자식을 먼저 지우지 않으면 409가 난다. */
@@ -543,6 +578,164 @@ describe('가상계좌 (assets/portfolios)', () => {
         .expect(400);
 
       expect(errorOf(response).code).toBe('BAD_REQUEST');
+    });
+  });
+
+  describe('POST /assets/portfolios/:portfolioId/stocks', () => {
+    const SAMSUNG = '005930';
+
+    const createOne = async (name: string, userId = TEST_USER_ID) =>
+      dataOf<PortfolioSummary>(await createPortfolio(name, userId).expect(201))
+        .id;
+
+    it('종목을 추가하고 portfolioId·stockCode·addedAt을 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      const response = await addStock(id, SAMSUNG).expect(201);
+      const added = dataOf<PortfolioStockAdded>(response);
+
+      expect(added).toMatchObject({ portfolioId: id, stockCode: SAMSUNG });
+
+      /** 명세는 ISO 8601 문자열이다. Date 객체가 새어나가면 안 된다. */
+      expect(typeof added.addedAt).toBe('string');
+    });
+
+    it('같은 계좌에 같은 종목을 다시 넣으면 409 ALREADY_ADDED를 반환한다', async () => {
+      const id = await createOne('안전형');
+      await addStock(id, SAMSUNG).expect(201);
+
+      const response = await addStock(id, SAMSUNG).expect(409);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_STOCK_ALREADY_ADDED');
+    });
+
+    it('다른 계좌에 있는 종목이면 409 IN_OTHER_PORTFOLIO를 반환한다', async () => {
+      const first = await createOne('안전형');
+      const second = await createOne('공격형');
+      await addStock(first, SAMSUNG).expect(201);
+
+      /** 가상계좌는 실보유 종목의 분할이라 한 종목이 두 계좌에 들어갈 수 없다. */
+      const response = await addStock(second, SAMSUNG).expect(409);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_STOCK_IN_OTHER_PORTFOLIO');
+    });
+
+    it('다른 사용자는 같은 종목을 담을 수 있다', async () => {
+      const mine = await createOne('내 계좌', TEST_USER_ID);
+      const others = await createOne('남의 계좌', OTHER_USER_ID);
+
+      await addStock(mine, SAMSUNG, TEST_USER_ID).expect(201);
+
+      /** 제약이 (userId, stockCode)라 사용자가 다르면 통과해야 한다. */
+      await addStock(others, SAMSUNG, OTHER_USER_ID).expect(201);
+    });
+
+    it('없는 계좌면 404 PORTFOLIO_NOT_FOUND를 반환한다', async () => {
+      const response = await addStock(MISSING_PORTFOLIO_ID, SAMSUNG).expect(
+        404,
+      );
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('다른 사용자의 계좌면 404를 반환한다', async () => {
+      const id = await createOne('남의 계좌', OTHER_USER_ID);
+
+      const response = await addStock(id, SAMSUNG, TEST_USER_ID).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('6자리 숫자가 아닌 종목 코드는 400을 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      for (const invalid of ['12345', '1234567', 'ABCDEF', '']) {
+        await addStock(id, invalid).expect(400);
+      }
+
+      await expect(prisma.virtualPortfolioStock.count()).resolves.toBe(0);
+    });
+  });
+
+  describe('DELETE /assets/portfolios/:portfolioId/stocks/:stockCode', () => {
+    const SAMSUNG = '005930';
+
+    const createOne = async (name: string, userId = TEST_USER_ID) =>
+      dataOf<PortfolioSummary>(await createPortfolio(name, userId).expect(201))
+        .id;
+
+    it('종목을 제거하고 removed: true를 반환한다', async () => {
+      const id = await createOne('안전형');
+      await addStock(id, SAMSUNG).expect(201);
+
+      const response = await removeStock(id, SAMSUNG).expect(200);
+
+      expect(dataOf<PortfolioStockRemoved>(response)).toEqual({
+        portfolioId: id,
+        stockCode: SAMSUNG,
+        removed: true,
+      });
+      await expect(prisma.virtualPortfolioStock.count()).resolves.toBe(0);
+    });
+
+    it('제거한 종목은 다른 계좌에 넣을 수 있다', async () => {
+      const first = await createOne('안전형');
+      const second = await createOne('공격형');
+      await addStock(first, SAMSUNG).expect(201);
+
+      await removeStock(first, SAMSUNG).expect(200);
+
+      /** (userId, stockCode) 제약에서 풀렸는지 확인한다. */
+      await addStock(second, SAMSUNG).expect(201);
+    });
+
+    it('등록되지 않은 종목이면 404 STOCK_NOT_FOUND를 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      const response = await removeStock(id, SAMSUNG).expect(404);
+
+      /** 계좌는 있으므로 PORTFOLIO_NOT_FOUND가 아니어야 한다. */
+      expect(errorOf(response).code).toBe('PORTFOLIO_STOCK_NOT_FOUND');
+    });
+
+    it('없는 계좌면 404 PORTFOLIO_NOT_FOUND를 반환한다', async () => {
+      const response = await removeStock(MISSING_PORTFOLIO_ID, SAMSUNG).expect(
+        404,
+      );
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+    });
+
+    it('다른 계좌에 있는 종목은 제거되지 않는다', async () => {
+      const first = await createOne('안전형');
+      const second = await createOne('공격형');
+      await addStock(first, SAMSUNG).expect(201);
+
+      const response = await removeStock(second, SAMSUNG).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_STOCK_NOT_FOUND');
+      await expect(prisma.virtualPortfolioStock.count()).resolves.toBe(1);
+    });
+
+    it('다른 사용자의 계좌면 404를 반환하고 지우지 않는다', async () => {
+      const id = await createOne('남의 계좌', OTHER_USER_ID);
+      await addStock(id, SAMSUNG, OTHER_USER_ID).expect(201);
+
+      const response = await removeStock(id, SAMSUNG, TEST_USER_ID).expect(404);
+
+      expect(errorOf(response).code).toBe('PORTFOLIO_NOT_FOUND');
+      await expect(prisma.virtualPortfolioStock.count()).resolves.toBe(1);
+    });
+
+    /**
+     * 형식 오류는 400이다. 경로 파라미터라 전역 ValidationPipe가 보지
+     * 않으므로 ParseStockCodePipe가 없으면 '없는 종목' 404로 새어 나간다.
+     */
+    it('6자리 숫자가 아닌 종목 코드는 400을 반환한다', async () => {
+      const id = await createOne('안전형');
+
+      await removeStock(id, 'AAPL').expect(400);
+      await removeStock(id, '00593').expect(400);
     });
   });
 });

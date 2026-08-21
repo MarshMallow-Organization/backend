@@ -10,8 +10,12 @@ import { PostDiariesDto } from '../dto/request/post-diaries.dto';
 import { CreateDiaryResponseDto } from '../dto/response/create-diary-response.dto';
 import { CreateDiaryCommand } from '../models/create-diary-command.model';
 import { DiaryPageCriteria } from '../models/diary-page.model';
+import { UpdateDiaryDto } from '../dto/request/update-diary.dto';
+import { UpdateDiaryResponseDto } from '../dto/response/update-diary-response.dto';
 import { DiariesRepository } from '../repositories/diaries.repository';
+import { buildUpdateDiaryCommand } from '../models/update-diary.model';
 import { DiaryDetailResponseDto } from '../dto/response/diary-detail-response.dto';
+import { DeleteDiaryResponseDto } from '../dto/response/delete-diary-response.dto';
 import { DiaryPrefillResponseDto } from '../dto/response/diary-prefill-response.dto';
 import { DiaryType } from '../dto/request/post-diaries.dto';
 
@@ -21,6 +25,25 @@ const DEFAULT_SIZE = 10;
 @Injectable()
 export class DiariesService {
   constructor(private readonly diariesRepository: DiariesRepository) {}
+
+  async deleteDiary(
+    userId: number,
+    diaryId: number,
+  ): Promise<DeleteDiaryResponseDto> {
+    const deleted = await this.diariesRepository.softDeleteDiary(
+      userId,
+      diaryId,
+    );
+
+    if (deleted === null) {
+      throw new BusinessException(DiariesErrorCode.DIARY_NOT_FOUND, {
+        userId,
+        diaryId,
+      });
+    }
+
+    return deleted;
+  }
 
   async getDiaryPrefill(
     userId: number,
@@ -169,6 +192,39 @@ export class DiariesService {
     } as CreateDiaryCommand;
 
     return this.diariesRepository.createDiary(userId, command);
+  }
+
+  async updateDiary(
+    userId: number,
+    diaryId: number,
+    request: UpdateDiaryDto,
+  ): Promise<UpdateDiaryResponseDto> {
+    if (Object.keys(request).length === 0) {
+      throw new BusinessException(DiariesErrorCode.EMPTY_UPDATE_REQUEST);
+    }
+
+    const diary = await this.diariesRepository.findActiveDiaryForUpdate(
+      userId,
+      diaryId,
+    );
+
+    if (diary === null) {
+      throw new BusinessException(DiariesErrorCode.DIARY_NOT_FOUND, {
+        userId,
+        diaryId,
+      });
+    }
+
+    const result = buildUpdateDiaryCommand(diary, request);
+
+    if (!result.ok) {
+      throw new BusinessException(DiariesErrorCode[result.violation], {
+        diaryId,
+        diaryType: diary.type,
+      });
+    }
+
+    return this.diariesRepository.updateDiary(userId, diaryId, result.command);
   }
 
   private validatePagination(page: number, size: number): void {

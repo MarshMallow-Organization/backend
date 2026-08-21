@@ -16,6 +16,7 @@ import { AssetsModule } from './domains/assets/assets.module';
 import { UsersModule } from './domains/users/users.module';
 import { OrdersModule } from './domains/orders/orders.module';
 import { TradesModule } from './domains/trades/trades.module';
+import { MarketsModule } from './domains/markets/markets.module';
 
 // 운영 환경에서 뺄것 분기처리 하기
 const imports = [
@@ -35,6 +36,8 @@ const imports = [
   OrdersModule,
   /** 매매 체결 내역 모듈 */
   TradesModule,
+  /** 종목 및 랭킹 정보 조회 모듈 */
+  MarketsModule,
 ];
 
 @Module({
