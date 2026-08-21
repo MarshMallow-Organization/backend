@@ -23,13 +23,6 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-    }),
-  );
-
   /** 요청 DTO의 변환과 유효성 검사를 전역으로 적용한다. */
   app.useGlobalPipes(
     new ValidationPipe({
