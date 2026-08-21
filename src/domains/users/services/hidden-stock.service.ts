@@ -4,7 +4,7 @@ import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 import { BusinessException } from 'src/common/exception/businessException';
 import { TossApiService } from 'src/domains/api/toss-api.service';
 import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
-import { HiddenStockErrorCode } from '../hidden-stock-error-code';
+import { HiddenStockErrorCode } from '../error/hidden-stock-error-code';
 
 @Injectable()
 export class HiddenStockService {

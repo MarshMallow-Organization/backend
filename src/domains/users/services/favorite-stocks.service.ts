@@ -11,7 +11,7 @@ import { FavoriteStockItemDto } from '../dto/response/favorite-stock-item.dto';
 import { FavoriteStockListResponseDto } from '../dto/response/favorite-stock-list-response.dto';
 import { FavoriteStockStatusResponseDto } from '../dto/response/favorite-stock-status-response.dto';
 import { RemoveFavoriteStockResponseDto } from '../dto/response/remove-favorite-stock-response.dto';
-import { FavoriteStocksErrorCode } from '../favorite-stocks.error';
+import { FavoriteStocksErrorCode } from '../error/favorite-stocks.error';
 
 const ITEM_SELECT = {
   id: true,
