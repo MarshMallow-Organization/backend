@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 import { BusinessException } from 'src/common/exception/businessException';
-import { TossApiService } from 'src/domains/api/toss-api.service';
+import { TossClient } from 'src/domains/api/clients/toss/toss.client';
 import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
 import { HiddenStockErrorCode } from '../error/hidden-stock-error-code';
 
@@ -10,14 +10,12 @@ import { HiddenStockErrorCode } from '../error/hidden-stock-error-code';
 export class HiddenStockService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly tossApiService: TossApiService,
+    private readonly tossClient: TossClient,
   ) {}
 
   async hideStock(userId: number, dto: PostHiddenStockDto) {
     // 실제로 있는 종목인지 확인
-    const existingStock = await this.tossApiService.getStockfromToss(
-      dto.stockCode,
-    );
+    const existingStock = await this.tossClient.getStock(dto.stockCode);
 
     if (existingStock.result.length === 0) {
       throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);

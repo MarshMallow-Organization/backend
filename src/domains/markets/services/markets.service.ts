@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
-import { TossApiService } from 'src/domains/api/toss-api.service';
+import { TossClient } from 'src/domains/api/clients/toss/toss.client';
 import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
 
 @Injectable()
 export class MarketsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly tossApiService: TossApiService,
+    private readonly tossClient: TossClient,
   ) {}
 
   async getStock(userId: number, stockCode: string) {
@@ -39,7 +39,7 @@ export class MarketsService {
     }
 
     // 실제로 존재하는 종목인지 확인
-    const existingStock = await this.tossApiService.getStockfromToss(stockCode);
+    const existingStock = await this.tossClient.getStock(stockCode);
 
     if (existingStock.result.length === 0) {
       throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);
@@ -51,18 +51,6 @@ export class MarketsService {
     return {
       symbol: resultstock.symbol,
       name: resultstock.name,
-      englishName: resultstock.englishName,
-      isinCode: resultstock.isinCode,
-      market: resultstock.market,
-      securityType: resultstock.securityType,
-      isCommonShare: resultstock.isCommonShare,
-      status: resultstock.status,
-      currency: resultstock.currency,
-      listDate: resultstock.listDate,
-      delistDate: resultstock.delistDate,
-      sharesOutstanding: resultstock.sharesOutstanding,
-      leverageFactor: resultstock.leverageFactor,
-      koreanMarketDetail: resultstock.koreanMarketDetail,
       isHidden: false,
     };
   }
