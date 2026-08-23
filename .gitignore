@@ -62,6 +62,3 @@ mysql
 # Prisma 생성 클라이언트. postinstall의 `prisma generate`가 만든다.
 # 선행 슬래시를 붙이면 저장소 루트에만 걸려 src/ 아래를 못 잡는다.
 src/generated/prisma/
-
-# 개인 작업 기록
-/worklogs/8t-truck/

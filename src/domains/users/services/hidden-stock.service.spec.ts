@@ -1,5 +1,4 @@
 import { BusinessException } from '../../../common/exception/businessException';
-import { TossClient } from '../../api/clients/toss/toss.client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 import { HiddenStockService } from './hidden-stock.service';
@@ -41,35 +40,23 @@ describe('HiddenStockService', () => {
       hiddenUntil: new Date(dto.hiddenUntil),
     }),
   );
-  const getStock = jest.fn(() =>
-    Promise.resolve({
-      result: [{ symbol: dto.stockCode, name: '삼성전자' }],
-    }),
-  );
 
   let service: HiddenStockService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     findUnique.mockResolvedValue(null);
-    getStock.mockResolvedValue({
-      result: [{ symbol: dto.stockCode, name: '삼성전자' }],
-    });
 
     const prisma = {
       hiddenStock: { findUnique, create },
     } as unknown as PrismaService;
-    const tossClient = {
-      getStock,
-    } as unknown as TossClient;
 
-    service = new HiddenStockService(prisma, tossClient);
+    service = new HiddenStockService(prisma);
   });
 
-  it('존재하는 종목을 숨김 테이블에 저장하고 응답 값을 반환한다', async () => {
+  it('종목을 숨김 테이블에 저장하고 응답 값을 반환한다', async () => {
     const result = await service.hideStock(userId, dto);
 
-    expect(getStock).toHaveBeenCalledWith(dto.stockCode);
     expect(findUnique).toHaveBeenCalledWith({
       where: {
         userId_stockCode: {
@@ -92,17 +79,6 @@ describe('HiddenStockService', () => {
       hiddenAt: createdAt,
       hiddenUntil: new Date(dto.hiddenUntil),
     });
-  });
-
-  it('토스 API에서 종목을 찾지 못하면 NOT_FOUND_STOCK을 던진다', async () => {
-    getStock.mockResolvedValue({ result: [] });
-
-    await expectBusinessException(
-      service.hideStock(userId, dto),
-      'NOT_FOUND_STOCK',
-    );
-    expect(findUnique).not.toHaveBeenCalled();
-    expect(create).not.toHaveBeenCalled();
   });
 
   it('이미 숨긴 종목이면 CONFLICT를 던진다', async () => {

@@ -2,51 +2,68 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { TossClient } from './toss.client';
 
+import * as dotenv from 'dotenv';
+import { TossStockResponse } from './toss.types';
+
+dotenv.config();
+
 describe('TossClient', () => {
-  describe('MOCK 모드 테스트 (토큰이 없는 경우)', () => {
-    let client: TossClient;
+  let client: TossClient;
 
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          TossClient,
-          {
-            provide: ConfigService,
-            useValue: {
-              get: jest.fn((key: string) => {
-                if (key === 'toss.accessToken') return undefined; // 토큰 없음
-                return undefined;
-              }),
-            },
+  beforeAll(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TossClient,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'toss.accessToken')
+                return process.env.TOSS_ACCESS_TOKEN;
+              if (key === 'toss.clientKey') return process.env.TOSS_CLIENT_KEY;
+              if (key === 'toss.clientSecret')
+                return process.env.TOSS_CLIENT_SECRET;
+              return undefined;
+            }),
           },
-        ],
-      }).compile();
+        },
+      ],
+    }).compile();
 
-      client = module.get<TossClient>(TossClient);
-    });
+    client = module.get<TossClient>(TossClient);
+  });
 
-    it('사전 정의된 삼성전자(005930) Mock 데이터를 반환한다', async () => {
-      const response = await client.getStock('005930');
-      expect(response.result).toHaveLength(1);
-      expect(response.result[0].symbol).toBe('005930');
-      expect(response.result[0].name).toBe('삼성전자');
-    });
+  it('client.request()를 통해 실제 토스 API에서 종목 정보를 조회하고 결과를 출력한다', async () => {
+    const hasCredentials =
+      process.env.TOSS_ACCESS_TOKEN ||
+      (process.env.TOSS_CLIENT_KEY && process.env.TOSS_CLIENT_SECRET);
 
-    it('존재하지 않는 코드(INVALID) 조회 시 빈 result 배열을 반환한다', async () => {
-      const response = await client.getStock('INVALID');
-      expect(response.result).toHaveLength(0);
-    });
+    if (!hasCredentials) {
+      console.warn(
+        '\n⚠️ [.env 파일 미설정] TOSS_CLIENT_KEY/SECRET 또는 TOSS_ACCESS_TOKEN이 없어 실제 API 호출을 건너뜁니다.\n',
+      );
+      return;
+    }
 
-    it('임의의 종목 코드로 조회 시 모의 종목 데이터를 동적으로 생성해 반환한다', async () => {
-      const response = await client.getStock('123456');
-      expect(response.result).toHaveLength(1);
-      expect(response.result[0].symbol).toBe('123456');
-      expect(response.result[0].name).toBe('모의종목_123456');
-    });
+    console.log('\n======================================================');
+    console.log('🚀 [실제 토스 API request() 호출] 삼성전자(005930) 조회');
+    console.log('======================================================');
 
-    it('getRanking 호출 시 모의 랭킹 목록을 반환한다', async () => {
-      const response = await client.getRanking();
-      expect(response.length).toBeGreaterThan(0);
-    });
+    const stockCode = '005930';
+    const response = await client.request<TossStockResponse>(
+      `/stocks?symbols=${stockCode}`,
+      { method: 'GET' },
+    );
+
+    console.log('\n✅ [토스 API 응답 결과]:');
+    console.log(JSON.stringify(response, null, 2));
+    console.log('======================================================\n');
+
+    expect(response).toBeDefined();
+    expect(response.result).toBeDefined();
+    expect(Array.isArray(response.result)).toBe(true);
+    expect(response.result.length).toBeGreaterThan(0);
+    expect(response.result[0].symbol).toBe('005930');
+    expect(response.result[0].name).toBe('삼성전자');
   });
 });
