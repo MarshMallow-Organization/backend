@@ -19,6 +19,7 @@ import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-remove
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
 import { HoldingsProvider } from './holdings.provider';
+import { toPercent } from './money.util';
 
 /** 사용자당 가상계좌는 최대 4개. */
 const MAX_PORTFOLIO_COUNT = 4;
@@ -42,16 +43,6 @@ const SUMMARY_SELECT = {
   sortOrder: true,
   createdAt: true,
 } as const;
-
-/**
- * 수익률은 퍼센트, 소수 2자리다.
- *
- * 부동소수점 오차 때문에 곱했다 나누는 과정에서 8.199999999999999가
- * 나올 수 있어 반올림 전에 한 번 정리한다. Number.EPSILON을 더하는
- * 흔한 요령은 음수에서 반대로 작동해 쓰지 않는다.
- */
-const toPercent = (ratio: number): number =>
-  Math.round(Number((ratio * 100).toFixed(6)) * 100) / 100;
 
 /** 명세상 보유 수량이 1주 이상인 종목만 응답에 담는다. */
 const MIN_HOLDING_QUANTITY = 1;

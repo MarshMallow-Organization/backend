@@ -26,6 +26,23 @@ export interface Holding {
 
   /** 현재가. */
   currentPrice: number;
+
+  /**
+   * 아래 4개는 자산 요약(/assets/summary) 전용 필드다.
+   * 토스가 계산해서 내려주는 값을 그대로 신뢰하고 이 서비스에서 재계산하지 않는다.
+   */
+
+  /** 매입금액(원화). 토스 totalPurchaseAmount.krw */
+  totalPurchaseAmount: number;
+
+  /** 평가금액(원화). 토스 marketValue.amount.krw */
+  evaluationAmount: number;
+
+  /** 평가손익(원화). 토스 profitLoss.amount.krw */
+  profitAmount: number;
+
+  /** 일간 손익(원화). 토스 dailyProfitLoss.amount.krw */
+  dailyProfitAmount: number;
 }
 
 /**
@@ -42,6 +59,10 @@ const STUB_HOLDINGS: readonly Holding[] = [
     quantity: 30,
     avgBuyPrice: 68000,
     currentPrice: 72500,
+    totalPurchaseAmount: 2040000, // 68000 * 30
+    evaluationAmount: 2175000, // 72500 * 30
+    profitAmount: 135000, // (72500 - 68000) * 30
+    dailyProfitAmount: 13500, // 임의값(평가손익의 10%)
   },
   {
     stockCode: '000660',
@@ -49,6 +70,10 @@ const STUB_HOLDINGS: readonly Holding[] = [
     quantity: 10,
     avgBuyPrice: 180000,
     currentPrice: 198000,
+    totalPurchaseAmount: 1800000, // 180000 * 10
+    evaluationAmount: 1980000, // 198000 * 10
+    profitAmount: 180000, // (198000 - 180000) * 10
+    dailyProfitAmount: 18000, // 임의값(평가손익의 10%)
   },
   {
     stockCode: '035720',
@@ -56,6 +81,10 @@ const STUB_HOLDINGS: readonly Holding[] = [
     quantity: 5,
     avgBuyPrice: 48500.4,
     currentPrice: 41200,
+    totalPurchaseAmount: 242502, // 48500.4 * 5
+    evaluationAmount: 206000, // 41200 * 5
+    profitAmount: -36502, // (41200 - 48500.4) * 5, 손실 케이스
+    dailyProfitAmount: -3650, // 임의값(평가손익의 10%, 음수 유지)
   },
   {
     stockCode: '373220',
@@ -63,6 +92,10 @@ const STUB_HOLDINGS: readonly Holding[] = [
     quantity: 0,
     avgBuyPrice: 412000,
     currentPrice: 385000,
+    totalPurchaseAmount: 0, // 전량 매도라 현재 보유 노출 없음
+    evaluationAmount: 0,
+    profitAmount: 0,
+    dailyProfitAmount: 0,
   },
 ];
 
