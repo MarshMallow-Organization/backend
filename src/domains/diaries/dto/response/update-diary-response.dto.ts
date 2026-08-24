@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   DiaryType,
   GoalEvaluationCode,
@@ -14,11 +14,13 @@ export class UpdateDiaryResponseDto {
   /** 일기 유형. @example BUY */
   type: DiaryType;
   /** 체결 수량 가중평균 가격 또는 미체결 주문 가격. @example 72500 */
-  price: number;
+  @ApiProperty({ type: Number, nullable: true, example: 72500 })
+  price: number | null;
   /** 전체 체결 수량 또는 미체결 주문 수량. @example 7 */
   quantity: number;
   /** 전체 체결 금액 또는 주문 가격과 수량의 곱. @example 507500 */
-  totalAmount: number;
+  @ApiProperty({ type: Number, nullable: true, example: 507500 })
+  totalAmount: number | null;
   /** 일기 날짜. @example 2026-08-05 */
   date: string;
   /** 감정 점수. @example 3 */

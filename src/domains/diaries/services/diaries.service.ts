@@ -68,10 +68,10 @@ export class DiariesService {
       corpName: snapshot.corpName,
       orderedAt: snapshot.orderedAt,
       quantity: snapshot.quantity,
-      perAtTrade: snapshot.perAtTrade,
-      pbrAtTrade: snapshot.pbrAtTrade,
-      marketCapAtTrade: snapshot.marketCapAtTrade,
-      candelChartAtUrl: snapshot.candelChartAtUrl,
+      perAtOrder: snapshot.perAtOrder,
+      pbrAtOrder: snapshot.pbrAtOrder,
+      marketCapAtOrder: snapshot.marketCapAtOrder,
+      candleChartAtUrl: snapshot.candleChartAtUrl,
     };
 
     if (snapshot.type === DiaryType.BUY) {

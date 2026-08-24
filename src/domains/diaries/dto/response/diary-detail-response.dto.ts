@@ -14,10 +14,10 @@ class DiaryDetailBaseDto {
   corpName: string;
   orderedAt: string;
   quantity: number;
-  perAtTrade: number | null;
-  pbrAtTrade: number | null;
-  marketCapAtTrade: number | null;
-  candelChartAtUrl: string | null;
+  perAtOrder: number | null;
+  pbrAtOrder: number | null;
+  marketCapAtOrder: number | null;
+  candleChartAtUrl: string | null;
   emotion: number;
   memo: string | null;
   createdAt: string;
