@@ -1,16 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
+import { MarketsApiService } from 'src/domains/api/markets-api/markets-api.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { GetStockResponseDto } from '../dto/response/get-stock-response.dto';
 import { MarketsErrorCode } from '../error/markets-error-code';
-import { MOCK_STOCKS } from '../constant';
 
 @Injectable()
 export class MarketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly marketsApiService: MarketsApiService,
+  ) {}
 
-  async getStock(userId: number, stockCode: string) {
-    // 해당 종목이 숨김 상태인지 확인
-    const existingHiddenstock = await this.prisma.hiddenStock.findUnique({
+  async getStock(
+    userId: number,
+    stockCode: string,
+  ): Promise<GetStockResponseDto> {
+    const existingHiddenStock = await this.prisma.hiddenStock.findUnique({
       where: {
         userId_stockCode: {
           userId,
@@ -19,33 +25,43 @@ export class MarketsService {
       },
     });
 
-    if (existingHiddenstock) {
+    if (existingHiddenStock) {
       const now = new Date();
-      const hiddenUntil = new Date(existingHiddenstock.hiddenUntil);
+      const hiddenUntil = new Date(existingHiddenStock.hiddenUntil);
 
       if (hiddenUntil > now) {
-        // 숨김 종목 존재 시 반환
         return {
-          symbol: existingHiddenstock.stockCode,
-          name: existingHiddenstock.stockName,
+          symbol: existingHiddenStock.stockCode,
+          name: existingHiddenStock.stockName,
           message: '숨김 처리된 종목입니다.',
-          hiddenUntil: existingHiddenstock.hiddenUntil,
-          isHidden: true,
+          hiddenUntil: existingHiddenStock.hiddenUntil.toISOString(),
+          isHidden: true as const,
         };
       }
     }
 
-    // 실제로 존재하는 종목인지 Mock 데이터 검증
-    const stockName = MOCK_STOCKS[stockCode];
-    if (!stockName) {
+    const stock = await this.marketsApiService.getStock(stockCode);
+
+    if (!stock) {
       throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);
     }
 
-    // 숨기지 않은 정상 종목에 대해 종목 정보 반환
     return {
-      symbol: stockCode,
-      name: stockName,
-      isHidden: false,
+      symbol: stock.symbol,
+      name: stock.name,
+      englishName: stock.englishName,
+      isinCode: stock.isinCode,
+      market: stock.market,
+      securityType: stock.securityType,
+      isCommonShare: stock.isCommonShare,
+      status: stock.status,
+      currency: stock.currency,
+      listDate: stock.listDate,
+      delistDate: stock.delistDate,
+      sharesOutstanding: stock.sharesOutstanding,
+      leverageFactor: stock.leverageFactor,
+      koreanMarketDetail: stock.koreanMarketDetail,
+      isHidden: false as const,
     };
   }
 }
