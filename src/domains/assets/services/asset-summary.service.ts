@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AssetSummaryResponseDto } from '../dto/response/asset-summary-response.dto';
+import { getHiddenStockCodes } from './hidden-stock-lookup.util';
 import { HoldingsProvider } from './holdings.provider';
 import { toPercent } from './money.util';
 
@@ -22,15 +23,10 @@ export class AssetSummaryService {
    * 그대로 합산할 뿐, 여기서 다시 계산하지 않는다.
    */
   async getAssetSummary(userId: number): Promise<AssetSummaryResponseDto> {
-    const [holdings, hiddenStocks] = await Promise.all([
+    const [holdings, hiddenCodes] = await Promise.all([
       this.holdingsProvider.getHoldings(userId),
-      this.prisma.hiddenStock.findMany({
-        where: { userId, hiddenUntil: { gt: new Date() } },
-        select: { stockCode: true },
-      }),
+      getHiddenStockCodes(this.prisma, userId),
     ]);
-
-    const hiddenCodes = new Set(hiddenStocks.map((row) => row.stockCode));
 
     const visibleHoldings = holdings.filter(
       (holding) =>

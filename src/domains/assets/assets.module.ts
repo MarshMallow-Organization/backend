@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { AssetsController } from './controllers/assets.controller';
 import { PortfoliosController } from './controllers/portfolios.controller';
+import { AssetHoldingsService } from './services/asset-holdings.service';
 import { AssetSummaryService } from './services/asset-summary.service';
 import { HoldingsProvider } from './services/holdings.provider';
 import { PortfoliosService } from './services/portfolios.service';
@@ -10,7 +11,12 @@ import { PortfoliosService } from './services/portfolios.service';
   /** PrismaModule은 @Global이 아니라서 도메인마다 직접 import해야 한다. */
   imports: [PrismaModule],
   controllers: [PortfoliosController, AssetsController],
-  providers: [PortfoliosService, AssetSummaryService, HoldingsProvider],
+  providers: [
+    PortfoliosService,
+    AssetSummaryService,
+    AssetHoldingsService,
+    HoldingsProvider,
+  ],
 
   /**
    * HoldingsProvider만 내보낸다.

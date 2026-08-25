@@ -18,6 +18,7 @@ import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dt
 import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-removed.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
+import { enrichHolding } from './holding.util';
 import { HoldingsProvider } from './holdings.provider';
 import { toPercent } from './money.util';
 
@@ -132,23 +133,7 @@ export class PortfoliosService {
           registeredCodes.has(holding.stockCode) &&
           holding.quantity >= MIN_HOLDING_QUANTITY,
       )
-      .map((holding) => {
-        const diff = holding.currentPrice - holding.avgBuyPrice;
-
-        return {
-          ...holding,
-          evaluationAmount: Math.round(holding.currentPrice * holding.quantity),
-          unrealizedProfit: Math.round(diff * holding.quantity),
-
-          /**
-           * avgBuyPrice가 0이면 수익률을 정의할 수 없다. 무상증자로 받은
-           * 주식이 0원으로 들어오면 실제로 생긴다. 0으로 두면 Infinity가
-           * JSON에 null로 나가 프론트가 깨진다.
-           */
-          returnRate:
-            holding.avgBuyPrice > 0 ? toPercent(diff / holding.avgBuyPrice) : 0,
-        };
-      });
+      .map(enrichHolding);
 
     /**
      * 계좌 수익률은 금액가중이다. 종목별 returnRate의 단순평균을 쓰면
