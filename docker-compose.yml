@@ -1,4 +1,22 @@
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marshmallow-backend-test
+
+    ports:
+      - '3000:3000'
+
+    env_file:
+      - .env
+    depends_on:
+      - cgateDB
+    networks:
+      - cgate_network
+
+    restart: unless-stopped
+
   cgateDB:
     env_file:
       - .env
