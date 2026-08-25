@@ -50,7 +50,6 @@ export default () => ({
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
-
   /**
    * LocalEncryptionAdapter가 쓰는 대칭키(hex 64자리 = 32바이트).
    *
