@@ -46,6 +46,9 @@ describe('TossClient', () => {
   });
 
   it('client.request()를 통해 실제 토스 API에서 종목 정보를 조회하거나 에러 응답을 수신한다', async () => {
+    const isLiveTestEnabled = process.env.TOSS_LIVE_TEST_ENABLED === 'true';
+    if (!isLiveTestEnabled) return;
+
     const hasCredentials =
       process.env.TOSS_ACCESS_TOKEN ||
       (process.env.TOSS_CLIENT_KEY && process.env.TOSS_CLIENT_SECRET);

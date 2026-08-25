@@ -48,6 +48,9 @@ describe('KisClient', () => {
   });
 
   it('client.request()를 통해 실제 KIS API에서 주식 현재가 시세1을 조회한다', async () => {
+    const isLiveTestEnabled = process.env.KIS_LIVE_TEST_ENABLED === 'true';
+    if (!isLiveTestEnabled) return;
+
     const hasCredentials =
       process.env.KIS_ACCESS_TOKEN ||
       (process.env.KIS_APP_KEY && process.env.KIS_APP_SECRET);
@@ -85,6 +88,9 @@ describe('KisClient', () => {
   });
 
   it('client.getApprovalKey()를 통해 실시간 웹소켓 접속키를 발급받는다', async () => {
+    const isLiveTestEnabled = process.env.KIS_LIVE_TEST_ENABLED === 'true';
+    if (!isLiveTestEnabled) return;
+
     const hasCredentials =
       process.env.KIS_APP_KEY && process.env.KIS_APP_SECRET;
 

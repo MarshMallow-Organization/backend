@@ -223,7 +223,7 @@ export class OrdersApiService implements OnModuleInit {
       price: dto.price,
     };
 
-    const accountSeq = dto.accountSeq ?? process.env.TOSS_ACCOUNT_SEQ ?? '1';
+    const accountSeq = dto.accountSeq ?? '1';
 
     const rawResponse = await this.tossClient.request<TossOrderRawResponse>(
       '/orders',
@@ -256,7 +256,7 @@ export class OrdersApiService implements OnModuleInit {
   ): Promise<CancelOrderApiResponseDto> {
     this.logger.log(`[OrdersApiService] 토스 cancelOrder 요청: ${dto.orderId}`);
 
-    const accountSeq = dto.accountSeq ?? process.env.TOSS_ACCOUNT_SEQ ?? '1';
+    const accountSeq = dto.accountSeq ?? '1';
 
     const rawResponse =
       await this.tossClient.request<TossCancelOrderRawResponse>(
@@ -288,7 +288,7 @@ export class OrdersApiService implements OnModuleInit {
   ): Promise<GetOrderApiResponseDto> {
     this.logger.log(`[OrdersApiService] 토스 getOrder 조회 요청: ${orderId}`);
 
-    const seq = process.env.TOSS_ACCOUNT_SEQ ?? accountSeq;
+    const seq = accountSeq ?? '1';
 
     const rawResponse =
       await this.tossClient.request<TossOrderDetailRawResponse>(
