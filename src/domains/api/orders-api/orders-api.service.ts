@@ -29,7 +29,7 @@ export class OrdersApiService {
     dto: CreateOrderApiRequestDto,
   ): Promise<CreateOrderApiResponseDto> {
     this.logger.log(
-      `[OrdersApiService] createOrder 요청: ${JSON.stringify(dto)}`,
+      `[OrdersApiService] createOrder 요청 - symbol: ${dto.symbol}, side: ${dto.tradeType}, qty: ${dto.quantity}${dto.price ? `, price: ${dto.price}` : ''}`,
     );
 
     const rawRequest: TossOrderRawRequest = {
