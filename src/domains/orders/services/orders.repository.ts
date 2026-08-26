@@ -228,32 +228,4 @@ export class OrdersRepository {
       });
     });
   }
-
-  // 6. 미체결 조건부 주문 목록 조회 (서버 시작 시 웹소켓 감시 복구용)
-  async findPendingConditionalOrders() {
-    return await this.prisma.order.findMany({
-      where: {
-        orderCategory: OrderCategory.CONDITIONAL,
-        status: OrderStatus.PENDING,
-      },
-      include: {
-        orderCondition: true,
-      },
-    });
-  }
-
-  // 7. 주문 상태 및 체결 가격 갱신 (조건부 주문 체결 시 사용)
-  async updateStatus(id: number, status: OrderStatus, executedPrice?: number) {
-    return await this.prisma.order.update({
-      where: { id },
-      data: {
-        status,
-        ...(executedPrice !== undefined && { price: executedPrice }),
-      },
-      include: {
-        orderCondition: true,
-      },
-    });
-  }
 }
-
