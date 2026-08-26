@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { BusinessException } from 'src/common/exception/businessException';
+import { MarketsErrorCode } from '../error/markets-error-code';
+import { MOCK_STOCKS } from '../constant';
 
 @Injectable()
 export class MarketsService {
@@ -32,10 +35,16 @@ export class MarketsService {
       }
     }
 
-    // TODO: 시세/종목 연동 담당자가 API 연동 추가 예정
+    // 실제로 존재하는 종목인지 Mock 데이터 검증
+    const stockName = MOCK_STOCKS[stockCode];
+    if (!stockName) {
+      throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);
+    }
+
+    // 숨기지 않은 정상 종목에 대해 종목 정보 반환
     return {
       symbol: stockCode,
-      name: stockCode === '005930' ? '삼성전자' : `종목_${stockCode}`,
+      name: stockName,
       isHidden: false,
     };
   }

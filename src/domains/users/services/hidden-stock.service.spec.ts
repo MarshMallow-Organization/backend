@@ -100,4 +100,17 @@ describe('HiddenStockService', () => {
     );
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('존재하지 않는 종목 코드이면 NOT_FOUND_STOCK을 던진다', async () => {
+    const invalidDto = {
+      ...dto,
+      stockCode: '999999',
+    };
+
+    await expectBusinessException(
+      service.hideStock(userId, invalidDto),
+      'NOT_FOUND_STOCK',
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
 });

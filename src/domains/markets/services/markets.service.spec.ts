@@ -65,4 +65,12 @@ describe('MarketsService', () => {
       isHidden: false,
     });
   });
+
+  it('존재하지 않는 종목 코드이면 NOT_FOUND_STOCK을 던진다', async () => {
+    await expect(service.getStock(userId, '999999')).rejects.toMatchObject({
+      definition: {
+        code: 'NOT_FOUND_STOCK',
+      },
+    });
+  });
 });
