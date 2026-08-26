@@ -9,7 +9,9 @@ describe('OrdersWatcherService', () => {
 
   beforeEach(async () => {
     mockKisClient = {
-      getWebSocketUrl: jest.fn().mockReturnValue('ws://ops.koreainvestment.com:21000'),
+      getWebSocketUrl: jest
+        .fn()
+        .mockReturnValue('ws://ops.koreainvestment.com:21000'),
       getApprovalKey: jest.fn().mockResolvedValue('mock-approval-key-123'),
     };
 
@@ -68,6 +70,8 @@ describe('OrdersWatcherService', () => {
     });
 
     // private handleMessage 테스트용 호출
-    (service as unknown as { handleMessage: (msg: string) => void }).handleMessage(mockRawPacket);
+    (
+      service as unknown as { handleMessage: (msg: string) => void }
+    ).handleMessage(mockRawPacket);
   });
 });

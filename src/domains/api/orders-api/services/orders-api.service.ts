@@ -45,15 +45,19 @@ export class OrdersApiService implements OnModuleInit {
 
   onModuleInit() {
     // 실시간 웹소켓 틱 수신 시 목표가 비교 및 자동 주문 집행 파이프라인 연결
-    this.ordersWatcherService.onPriceUpdate(async (tick: KisRealtimePriceResponse) => {
-      await this.handleRealtimePrice(tick);
-    });
+    this.ordersWatcherService.onPriceUpdate(
+      async (tick: KisRealtimePriceResponse) => {
+        await this.handleRealtimePrice(tick);
+      },
+    );
   }
 
   /**
    * 조건부 주문 목표가 도달 시 DB 상태 갱신 등을 수행할 콜백 등록
    */
-  setConditionalOrderTriggerCallback(callback: ConditionalOrderTriggerCallback) {
+  setConditionalOrderTriggerCallback(
+    callback: ConditionalOrderTriggerCallback,
+  ) {
     this.triggerCallback = callback;
   }
 
@@ -65,7 +69,9 @@ export class OrdersApiService implements OnModuleInit {
    * KIS 시세1 API를 호출하여 주문 당시의 PER, PBR, 시가총액, 현재가를 조회합니다.
    */
   async getStockValuation(corpCode: string): Promise<StockOrderValuationDto> {
-    this.logger.log(`[OrdersApiService] KIS 종목 시세/재무 조회 요청: ${corpCode}`);
+    this.logger.log(
+      `[OrdersApiService] KIS 종목 시세/재무 조회 요청: ${corpCode}`,
+    );
 
     try {
       const response = await this.kisClient.request<KisStockPrice1Response>(
@@ -84,7 +90,9 @@ export class OrdersApiService implements OnModuleInit {
         currentPrice: output?.stck_prpr ? Number(output.stck_prpr) : undefined,
         perAtOrder: output?.per ? Number(output.per) : undefined,
         pbrAtOrder: output?.pbr ? Number(output.pbr) : undefined,
-        marketCapAtOrder: output?.hts_avls ? Number(output.hts_avls) : undefined,
+        marketCapAtOrder: output?.hts_avls
+          ? Number(output.hts_avls)
+          : undefined,
       };
     } catch (error) {
       this.logger.error(

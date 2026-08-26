@@ -24,8 +24,10 @@ describe('KisClient', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              if (key === 'kis.accessToken') return process.env.KIS_ACCESS_TOKEN;
-              if (key === 'kis.approvalKey') return process.env.KIS_APPROVAL_KEY;
+              if (key === 'kis.accessToken')
+                return process.env.KIS_ACCESS_TOKEN;
+              if (key === 'kis.approvalKey')
+                return process.env.KIS_APPROVAL_KEY;
               if (key === 'kis.appKey') return process.env.KIS_APP_KEY;
               if (key === 'kis.appSecret') return process.env.KIS_APP_SECRET;
               return undefined;

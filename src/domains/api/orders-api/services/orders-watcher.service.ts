@@ -35,8 +35,8 @@ export class OrdersWatcherService implements OnModuleInit, OnModuleDestroy {
 
   constructor(private readonly kisClient: KisClient) {}
 
-  async onModuleInit() {
-    await this.connectWebSocket();
+  onModuleInit() {
+    this.connectWebSocket();
   }
 
   onModuleDestroy() {
@@ -65,7 +65,7 @@ export class OrdersWatcherService implements OnModuleInit, OnModuleDestroy {
   /**
    * KIS 실시간 웹소켓 서버에 연결합니다.
    */
-  async connectWebSocket() {
+  connectWebSocket(): void {
     if (
       this.isConnecting ||
       (this.ws && this.ws.readyState === WebSocket.OPEN)
@@ -90,12 +90,16 @@ export class OrdersWatcherService implements OnModuleInit, OnModuleDestroy {
 
         // 연결(또는 재연결) 시 기존에 구독 중이던 종목들 다시 구독 패킷 전송
         for (const symbol of this.subscribedSymbols.keys()) {
-          this.sendPacket(symbol, '1');
+          void this.sendPacket(symbol, '1');
         }
       };
 
       this.ws.onmessage = (event: MessageEvent) => {
-        this.handleMessage(event.data?.toString() ?? '');
+        if (typeof event.data === 'string') {
+          this.handleMessage(event.data);
+        } else if (event.data instanceof Buffer) {
+          this.handleMessage(event.data.toString('utf-8'));
+        }
       };
 
       this.ws.onclose = () => {
@@ -235,7 +239,7 @@ export class OrdersWatcherService implements OnModuleInit, OnModuleDestroy {
     // 리스너들에게 실시간 시세 데이터 전달
     for (const listener of this.listeners) {
       try {
-        listener(priceData);
+        void listener(priceData);
       } catch (err) {
         this.logger.error('[OrdersWatcherService] 리스너 실행 중 에러:', err);
       }

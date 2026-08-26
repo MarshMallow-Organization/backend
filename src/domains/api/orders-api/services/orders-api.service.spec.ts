@@ -32,7 +32,9 @@ describe('OrdersApiService', () => {
               },
             }),
             getApprovalKey: jest.fn().mockResolvedValue('mock-approval-key'),
-            getWebSocketUrl: jest.fn().mockReturnValue('ws://ops.koreainvestment.com:21000'),
+            getWebSocketUrl: jest
+              .fn()
+              .mockReturnValue('ws://ops.koreainvestment.com:21000'),
           },
         },
         {
@@ -47,9 +49,11 @@ describe('OrdersApiService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              if (key === 'toss.accessToken') return process.env.TOSS_ACCESS_TOKEN;
+              if (key === 'toss.accessToken')
+                return process.env.TOSS_ACCESS_TOKEN;
               if (key === 'toss.clientKey') return process.env.TOSS_CLIENT_KEY;
-              if (key === 'toss.clientSecret') return process.env.TOSS_CLIENT_SECRET;
+              if (key === 'toss.clientSecret')
+                return process.env.TOSS_CLIENT_SECRET;
               return undefined;
             }),
           },

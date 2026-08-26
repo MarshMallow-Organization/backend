@@ -70,4 +70,3 @@ export interface WatchConditionalOrderDto {
   accountSeq?: string | number;
   tossCredentials?: TossCredentials;
 }
-
