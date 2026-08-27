@@ -49,7 +49,7 @@ export const createTestApp = async (): Promise<INestApplication<App>> => {
  * 테스트 데이터를 초기화하고 기본 사용자를 만든다.
  *
  * 각 테스트가 앞선 테스트의 잔여 데이터에 의존하지 않도록 매번 비운다.
- * FK 때문에 자식 테이블(virtual_portfolio_stocks)부터 지운다.
+ * FK 때문에 일기·체결·주문과 포트폴리오의 자식 테이블부터 지운다.
  */
 export const resetDatabase = async (prisma: PrismaService): Promise<void> => {
   if (process.env.DB_DATABASE !== EXPECTED_DATABASE) {
@@ -60,6 +60,14 @@ export const resetDatabase = async (prisma: PrismaService): Promise<void> => {
     );
   }
 
+  await prisma.buyDiary.deleteMany();
+  await prisma.sellDiary.deleteMany();
+  await prisma.diary.deleteMany();
+  await prisma.trade.deleteMany();
+  await prisma.orderCondition.deleteMany();
+  await prisma.snapshot.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.currency.deleteMany();
   await prisma.virtualPortfolioStock.deleteMany();
   await prisma.virtualPortfolio.deleteMany();
   await prisma.favoriteStock.deleteMany();

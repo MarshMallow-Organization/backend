@@ -59,9 +59,9 @@ export type UpdatedDiaryResult = {
   diaryId: number;
   orderId: number;
   type: DiaryType;
-  price: number;
+  price: number | null;
   quantity: number;
-  totalAmount: number;
+  totalAmount: number | null;
   date: string;
   emotion: number;
   buyReason?: string;

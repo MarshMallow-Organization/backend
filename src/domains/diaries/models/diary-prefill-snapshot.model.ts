@@ -14,8 +14,8 @@ export type DiaryPrefillSnapshot = {
   buyPrice: number | null;
   realizedProfit: number | null;
   returnRate: number | null;
-  perAtTrade: number | null;
-  pbrAtTrade: number | null;
-  marketCapAtTrade: number | null;
-  candelChartAtUrl: string | null;
+  perAtOrder: number | null;
+  pbrAtOrder: number | null;
+  marketCapAtOrder: number | null;
+  candleChartAtUrl: string | null;
 };

@@ -1,15 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
-import { TossClient } from 'src/domains/api/clients/toss/toss.client';
-import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
+import { MarketsErrorCode } from '../error/markets-error-code';
+import { MOCK_STOCKS } from '../constant';
 
 @Injectable()
 export class MarketsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly tossClient: TossClient,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getStock(userId: number, stockCode: string) {
     // 해당 종목이 숨김 상태인지 확인
@@ -38,19 +35,16 @@ export class MarketsService {
       }
     }
 
-    // 실제로 존재하는 종목인지 확인
-    const existingStock = await this.tossClient.getStock(stockCode);
-
-    if (existingStock.result.length === 0) {
+    // 실제로 존재하는 종목인지 Mock 데이터 검증
+    const stockName = MOCK_STOCKS[stockCode];
+    if (!stockName) {
       throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);
     }
 
-    const resultstock = existingStock.result[0];
-
-    // 숨기지 않은 종목에 대해 종목 정보를 반환
+    // 숨기지 않은 정상 종목에 대해 종목 정보 반환
     return {
-      symbol: resultstock.symbol,
-      name: resultstock.name,
+      symbol: stockCode,
+      name: stockName,
       isHidden: false,
     };
   }

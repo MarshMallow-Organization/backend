@@ -115,10 +115,10 @@ describe('DiariesService', () => {
       buyPrice: null,
       realizedProfit: null,
       returnRate: null,
-      perAtTrade: 6.4,
-      pbrAtTrade: 2.8,
-      marketCapAtTrade: 1_698_000_000_000_000,
-      candelChartAtUrl: 'https://example.com/candle.png',
+      perAtOrder: 6.4,
+      pbrAtOrder: 2.8,
+      marketCapAtOrder: 1_698_000_000_000_000,
+      candleChartAtUrl: 'https://example.com/candle.png',
     };
 
     it('BUY 주문의 자동채움 값과 총액을 반환한다', async () => {
@@ -136,10 +136,10 @@ describe('DiariesService', () => {
         price: 255_000,
         quantity: 5,
         totalAmount: 1_275_000,
-        perAtTrade: 6.4,
-        pbrAtTrade: 2.8,
-        marketCapAtTrade: 1_698_000_000_000_000,
-        candelChartAtUrl: 'https://example.com/candle.png',
+        perAtOrder: 6.4,
+        pbrAtOrder: 2.8,
+        marketCapAtOrder: 1_698_000_000_000_000,
+        candleChartAtUrl: 'https://example.com/candle.png',
       });
     });
 
@@ -178,10 +178,10 @@ describe('DiariesService', () => {
         totalSellAmount: 1_350_000,
         realizedProfit: 75_000,
         returnRate: 5.88,
-        perAtTrade: 6.4,
-        pbrAtTrade: 2.8,
-        marketCapAtTrade: 1_698_000_000_000_000,
-        candelChartAtUrl: 'https://example.com/candle.png',
+        perAtOrder: 6.4,
+        pbrAtOrder: 2.8,
+        marketCapAtOrder: 1_698_000_000_000_000,
+        candleChartAtUrl: 'https://example.com/candle.png',
       });
     });
 
@@ -219,10 +219,10 @@ describe('DiariesService', () => {
       price: 255_000,
       quantity: 5,
       totalAmount: 1_275_000,
-      perAtTrade: 6.4,
-      pbrAtTrade: 2.8,
-      marketCapAtTrade: 1_698_000_000_000_000,
-      candelChartAtUrl: 'https://example.com/candle.png',
+      perAtOrder: 6.4,
+      pbrAtOrder: 2.8,
+      marketCapAtOrder: 1_698_000_000_000_000,
+      candleChartAtUrl: 'https://example.com/candle.png',
       buyReason: '저평가 구간이라고 판단했다.',
       goalPrice: 290_000,
       goalHoldPeriod: GoalHoldPeriod.MID_TERM,

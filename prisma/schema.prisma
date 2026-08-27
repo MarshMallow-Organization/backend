@@ -35,9 +35,9 @@ model User {
   virtualPortfolioStocks VirtualPortfolioStock[]
 
   favoriteStocks FavoriteStock[]
-  hiddenStocks      HiddenStock[]
-  profilePic        ProfilePic?
-  loginSessions     LoginSession[]
+  hiddenStocks   HiddenStock[]
+  profilePic     ProfilePic?
+  loginSessions  LoginSession[]
 
   @@map("users")
 }
@@ -308,6 +308,27 @@ model HiddenStock {
 
   @@unique([userId, stockCode])
   @@map("hidden_stocks")
+}
+
+/// 토스증권의 시장별 전체 종목 목록을 동기화한 공용 종목 마스터.
+/// 사용자별 관심·숨김 기록과 분리하며, 이름 및 종목 코드 검색에 사용한다.
+model Stock {
+  id            Int     @id @default(autoincrement())
+  stockCode     String  @unique @db.VarChar(20)
+  name          String  @db.VarChar(100)
+  market        String  @db.VarChar(20)
+  securityType  String  @db.VarChar(30)
+  isCommonShare Boolean
+  isinCode      String? @db.VarChar(20)
+  isActive      Boolean @default(true)
+
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([name])
+  @@index([market, isActive])
+  @@map("stocks")
 }
 
 enum OrderType {
