@@ -50,6 +50,15 @@ describe('KisClient', () => {
       return;
     }
 
+    // 🛡️ [안전 스위치] KIS_LIVE_API_ENABLED=true 일 때만 실제 KIS 서버 호출
+    if (process.env.KIS_LIVE_API_ENABLED !== 'true') {
+      console.log(
+        '\n🔒 [실서버 API 보호 모드 - REST API] 평소에는 실제 외부 KIS REST API(시세 조회)를 호출하지 않습니다.\n' +
+          '👉 실제 KIS 연동 테스트를 실행하려면: KIS_LIVE_API_ENABLED=true yarn test src/domains/api/clients/kis/kis.client.spec.ts\n',
+      );
+      return;
+    }
+
     console.log('\n======================================================');
     console.log('🚀 [실제 KIS API request() 호출] 삼성전자(005930) 시세1 조회');
     console.log('======================================================');
@@ -80,6 +89,15 @@ describe('KisClient', () => {
     if (!hasCredentials) {
       console.warn(
         '\n⚠️ [.env 파일 미설정] KIS_APP_KEY/SECRET이 없어 웹소켓 접속키 발급 테스트를 건너뜁니다.\n',
+      );
+      return;
+    }
+
+    // 🛡️ [안전 스위치] KIS_LIVE_API_ENABLED=true 일 때만 실제 KIS 서버 호출
+    if (process.env.KIS_LIVE_API_ENABLED !== 'true') {
+      console.log(
+        '\n🔒 [실서버 API 보호 모드 - 웹소켓] 평소에는 실제 외부 KIS 웹소켓 접속키 발급 API를 호출하지 않습니다.\n' +
+          '👉 실제 KIS 연동 테스트를 실행하려면: KIS_LIVE_API_ENABLED=true yarn test src/domains/api/clients/kis/kis.client.spec.ts\n',
       );
       return;
     }

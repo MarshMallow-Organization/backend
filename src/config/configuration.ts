@@ -45,7 +45,6 @@ export default () => ({
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
-<<<<<<< HEAD
 
   /**
    * 임시 보유종목 스텁(HoldingsProvider) 활성화 여부.
@@ -57,12 +56,11 @@ export default () => ({
    */
   holdings: {
     stubEnabled: process.env.HOLDINGS_STUB_ENABLED === 'true',
-=======
+  },
   kis: {
     appKey: process.env.KIS_APP_KEY,
     appSecret: process.env.KIS_APP_SECRET,
     accessToken: process.env.KIS_ACCESS_TOKEN,
     approvalKey: process.env.KIS_APPROVAL_KEY,
->>>>>>> e70f1f6 (feat:한국투자증권(KIS) OpenAPI 연동 통신 엔진 구현 완료)
   },
 });

@@ -1,7 +1,8 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TossCredentials, TossTokenResponse } from './toss.types';
-import { throwTossException } from './toss.error';
+import { throwTossException, TossErrorCode } from './toss.error';
+import { BusinessException } from 'src/common/exception/businessException';
 
 @Injectable()
 export class TossClient {
@@ -9,7 +10,7 @@ export class TossClient {
   // 토스 증권 openAPI 기본 호스트 관리
   private readonly baseUrl = 'https://openapi.tossinvest.com';
 
-  // clientKey 별 메모리 캐싱용 토큰 맵 (키: clientKey 또는 '__DEFAULT__')
+  // clientKey 별 메모리 캐싱용 토큰 맵 (키: clientKey 또는 '__DEV_DEFAULT__')
   private tokenCache = new Map<string, { token: string; expiresAt: number }>();
   // 401로 무효화된 만료 토큰 집합 (재사용 방지)
   private invalidatedManualTokens = new Set<string>();
@@ -17,28 +18,36 @@ export class TossClient {
   constructor(private readonly configService: ConfigService) {}
 
   /**
+   * 개발자 모드(TOSS_DEVELOPER_MODE) 활성화 여부 확인
+   */
+  private isDeveloperMode(): boolean {
+    return this.configService.get<boolean>('toss.developerMode') ?? false;
+  }
+
+  /**
    * 유효한 Access Token을 조회하거나 필요 시 새로 발급받아 반환합니다.
-   * 1. credentials에 accessToken이 명시된 경우 우선 반환
-   * 2. credentials가 없으면 .env의 기본 TOSS_ACCESS_TOKEN 또는 기본 키 사용
-   * 3. 캐시된 토큰이 있고 만료되지 않은 경우 재사용
-   * 4. 토큰이 없거나 만료된 경우 해당 clientKey & clientSecret으로 자동 발급
+   * - 운영 모드(!isDeveloperMode): 사용자 연동 키(credentials)가 필수이며 .env 개발자 키를 절대 읽지 않음
+   * - 개발자 모드(isDeveloperMode): 사용자 연동 키가 없으면 .env의 개발자 테스트 키를 fallback으로 사용
    *
-   * @param credentials 사용자별 키 (없으면 .env 기본 개발자 키 사용)
+   * @param credentials 사용자별 키 (운영 환경 필수)
    * @param forceRefresh true일 경우 캐시를 무시하고 무조건 새로 발급
    */
   async getAccessToken(
     credentials?: TossCredentials,
     forceRefresh = false,
   ): Promise<string> {
+    const isDevMode = this.isDeveloperMode();
+
     // 1. 직접 전달된 accessToken이 있는 경우 (강제 갱신이 아닐 때)
     if (credentials?.accessToken && !forceRefresh) {
       return credentials.accessToken;
     }
 
-    const cacheKey = credentials?.clientKey ?? '__DEFAULT__';
+    const cacheKey =
+      credentials?.clientKey ?? (isDevMode ? '__DEV_DEFAULT__' : null);
 
-    // 2. credentials가 없을 때 수동 설정된 기본 토큰 확인 (무효화된 토큰 제외)
-    if (!credentials && !forceRefresh) {
+    // 2. 개발자 모드일 때만 .env에 수동 설정된 기본 토큰 확인 (무효화된 토큰 제외)
+    if (isDevMode && !credentials && !forceRefresh) {
       const manualDefaultToken =
         this.configService.get<string>('toss.accessToken');
       if (
@@ -50,29 +59,45 @@ export class TossClient {
     }
 
     // 3. 캐시된 유효 토큰 확인 (만료 60초 전까지 유효한 것으로 간주)
-    const cached = this.tokenCache.get(cacheKey);
-    const now = Date.now();
-    if (!forceRefresh && cached && now + 60_000 < cached.expiresAt) {
-      return cached.token;
+    if (cacheKey) {
+      const cached = this.tokenCache.get(cacheKey);
+      const now = Date.now();
+      if (!forceRefresh && cached && now + 60_000 < cached.expiresAt) {
+        return cached.token;
+      }
     }
 
     // 4. 사용할 clientKey & clientSecret 결정
+    // - 운영 모드: 사용자 연동 키가 없으면 계좌 미연동 예외 발생
+    // - 개발자 모드: 사용자 연동 키가 없으면 .env의 개발자 테스트 키 사용
+    if (!isDevMode && !credentials) {
+      throw new BusinessException(TossErrorCode.ACCOUNT_NOT_CONNECTED);
+    }
+
     const clientKey =
       credentials?.clientKey ??
-      this.configService.get<string>('toss.clientKey');
+      (isDevMode
+        ? this.configService.get<string>('toss.clientKey')
+        : undefined);
     const clientSecret =
       credentials?.clientSecret ??
-      this.configService.get<string>('toss.clientSecret');
+      (isDevMode
+        ? this.configService.get<string>('toss.clientSecret')
+        : undefined);
 
     if (!clientKey || !clientSecret) {
       throw new Error(
-        '[TossClient] TOSS_CLIENT_KEY 또는 TOSS_CLIENT_SECRET이 제공되지 않았습니다 (.env 또는 사용자 연동 키).',
+        isDevMode
+          ? '[TossClient] TOSS_CLIENT_KEY 또는 TOSS_CLIENT_SECRET이 설정되지 않았습니다.'
+          : '[TossClient] 토스 증권 연동 키 정보(clientKey, clientSecret)가 누락되었습니다.',
       );
     }
 
     // 5. 신규 토큰 발급 및 캐싱
     const issued = await this.issueAccessToken(clientKey, clientSecret);
-    this.tokenCache.set(cacheKey, issued);
+    if (cacheKey) {
+      this.tokenCache.set(cacheKey, issued);
+    }
     return issued.token;
   }
 
