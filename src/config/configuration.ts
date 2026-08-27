@@ -45,4 +45,14 @@ export default () => ({
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
+
+  /**
+   * LocalEncryptionAdapter가 쓰는 대칭키(hex 64자리 = 32바이트).
+   *
+   * 실제 AWS KMS 키(ARN)가 준비되기 전까지 임시로 쓴다.
+   * `openssl rand -hex 32`로 생성한다.
+   */
+  encryption: {
+    localKey: process.env.LOCAL_ENCRYPTION_KEY,
+  },
 });
