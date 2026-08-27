@@ -45,4 +45,16 @@ export default () => ({
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
+
+  /**
+   * 임시 보유종목 스텁(HoldingsProvider) 활성화 여부.
+   *
+   * auth.stubEnabled와 같은 이유로 별도 플래그를 쓴다. app.env가 미설정
+   * 시 'local'로 채워지는 걸 배포 환경 판정에 쓰면, 환경변수를 깜빡한
+   * 배포에서 모든 사용자에게 같은 가짜 자산이 노출된다. 실제 토스
+   * holdings 연동(GET /api/v1/holdings)이 붙으면 이 항목도 함께 지운다.
+   */
+  holdings: {
+    stubEnabled: process.env.HOLDINGS_STUB_ENABLED === 'true',
+  },
 });
