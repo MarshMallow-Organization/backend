@@ -2,6 +2,7 @@ export default () => ({
   /** 백엔드 서버 설정 */
   app: {
     env: process.env.APP_ENV ?? 'local',
+    isProd: (process.env.APP_ENV ?? 'local') === 'production',
     port: Number(process.env.PORT ?? '3000'),
     name: process.env.APP_NAME ?? 'marshmallow-api-server',
     version: process.env.APP_VERSION ?? '1.0.0',
@@ -41,20 +42,18 @@ export default () => ({
     origin: process.env.FRONTEND_ORIGIN,
   },
   toss: {
+    developerMode:
+      process.env.TOSS_DEVELOPER_MODE !== undefined
+        ? process.env.TOSS_DEVELOPER_MODE === 'true'
+        : (process.env.APP_ENV ?? 'local') !== 'production',
     clientKey: process.env.TOSS_CLIENT_KEY,
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
-
-  /**
-   * 임시 보유종목 스텁(HoldingsProvider) 활성화 여부.
-   *
-   * auth.stubEnabled와 같은 이유로 별도 플래그를 쓴다. app.env가 미설정
-   * 시 'local'로 채워지는 걸 배포 환경 판정에 쓰면, 환경변수를 깜빡한
-   * 배포에서 모든 사용자에게 같은 가짜 자산이 노출된다. 실제 토스
-   * holdings 연동(GET /api/v1/holdings)이 붙으면 이 항목도 함께 지운다.
-   */
-  holdings: {
-    stubEnabled: process.env.HOLDINGS_STUB_ENABLED === 'true',
+  kis: {
+    appKey: process.env.KIS_APP_KEY,
+    appSecret: process.env.KIS_APP_SECRET,
+    accessToken: process.env.KIS_ACCESS_TOKEN,
+    approvalKey: process.env.KIS_APPROVAL_KEY,
   },
 });

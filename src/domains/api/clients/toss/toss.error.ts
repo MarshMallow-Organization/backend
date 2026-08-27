@@ -24,6 +24,11 @@ export const TossErrorCode = defineErrorCodes({
     status: HttpStatus.UNAUTHORIZED,
     message: '증권사 API 인증에 실패했습니다.',
   },
+  ACCOUNT_NOT_CONNECTED: {
+    code: 'TOSS_ACCOUNT_NOT_CONNECTED',
+    status: HttpStatus.BAD_REQUEST,
+    message: '토스 증권 계좌가 연동되어 있지 않습니다.',
+  },
   DEFAULT_ERROR: {
     code: 'TOSS_API_ERROR',
     status: HttpStatus.BAD_REQUEST,
