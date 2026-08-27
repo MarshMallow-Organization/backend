@@ -41,6 +41,8 @@ export default () => ({
     origin: process.env.FRONTEND_ORIGIN,
   },
   toss: {
+    clientKey: process.env.TOSS_CLIENT_KEY,
+    clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
 });

@@ -2,22 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PostHiddenStockDto } from '../dto/request/post-hidden-stock.dto';
 import { BusinessException } from 'src/common/exception/businessException';
-import { TossClient } from 'src/domains/api/clients/toss/toss.client';
-import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
 import { HiddenStockErrorCode } from '../error/hidden-stock-error-code';
+import { MarketsErrorCode } from 'src/domains/markets/error/markets-error-code';
+import { MOCK_STOCKS } from 'src/domains/markets/constant';
 
 @Injectable()
 export class HiddenStockService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly tossClient: TossClient,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async hideStock(userId: number, dto: PostHiddenStockDto) {
-    // 실제로 있는 종목인지 확인
-    const existingStock = await this.tossClient.getStock(dto.stockCode);
-
-    if (existingStock.result.length === 0) {
+    // 실제로 존재하는 종목인지 확인
+    const stockName = MOCK_STOCKS[dto.stockCode];
+    if (!stockName) {
       throw new BusinessException(MarketsErrorCode.NOT_FOUND_STOCK);
     }
 
@@ -44,12 +40,11 @@ export class HiddenStockService {
     }
 
     // 테이블에 숨김정보 생성
-    const stock = existingStock.result[0];
     const createHiddenStock = await this.prisma.hiddenStock.create({
       data: {
         userId,
         stockCode: dto.stockCode,
-        stockName: stock.name,
+        stockName,
         hiddenUntil,
       },
     });
