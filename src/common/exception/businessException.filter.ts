@@ -51,6 +51,7 @@ export class BusinessExceptionFilter implements ExceptionFilter {
     }
 
     response.status(definition.status).json({
+      success: false,
       code: definition.code,
       message: definition.message,
 

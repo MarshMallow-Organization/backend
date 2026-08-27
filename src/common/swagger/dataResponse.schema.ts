@@ -26,8 +26,11 @@ type SchemaModel = Parameters<typeof getSchemaPath>[0];
  */
 export const dataSchema = (model: SchemaModel) => ({
   type: 'object' as const,
-  required: ['data'],
+  required: ['success', 'code', 'message', 'data'],
   properties: {
+    success: { type: 'boolean' as const, example: true },
+    code: { type: 'string' as const, example: '200' },
+    message: { type: 'string' as const, example: '요청에 성공하였습니다.' },
     data: { $ref: getSchemaPath(model) },
   },
 });

@@ -224,6 +224,7 @@ describe('관심종목 (users/me/favorite-stocks)', () => {
       }).expect(400);
 
       expect(response.body).toEqual({
+        success: false,
         code: expect.any(String) as unknown,
         message: expect.any(String) as unknown,
         traceId: expect.any(String) as unknown,

@@ -99,6 +99,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     }
 
     response.status(mapping.status).json({
+      success: false,
       code: mapping.code,
       message: mapping.message,
 
