@@ -2,6 +2,7 @@ export default () => ({
   /** 백엔드 서버 설정 */
   app: {
     env: process.env.APP_ENV ?? 'local',
+    isProd: (process.env.APP_ENV ?? 'local') === 'production',
     port: Number(process.env.PORT ?? '3000'),
     name: process.env.APP_NAME ?? 'marshmallow-api-server',
     version: process.env.APP_VERSION ?? '1.0.0',
@@ -41,6 +42,10 @@ export default () => ({
     origin: process.env.FRONTEND_ORIGIN,
   },
   toss: {
+    developerMode:
+      process.env.TOSS_DEVELOPER_MODE !== undefined
+        ? process.env.TOSS_DEVELOPER_MODE === 'true'
+        : (process.env.APP_ENV ?? 'local') !== 'production',
     clientKey: process.env.TOSS_CLIENT_KEY,
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
@@ -66,5 +71,12 @@ export default () => ({
    */
   holdings: {
     stubEnabled: process.env.HOLDINGS_STUB_ENABLED === 'true',
+  },
+
+  kis: {
+    appKey: process.env.KIS_APP_KEY,
+    appSecret: process.env.KIS_APP_SECRET,
+    accessToken: process.env.KIS_ACCESS_TOKEN,
+    approvalKey: process.env.KIS_APPROVAL_KEY,
   },
 });
