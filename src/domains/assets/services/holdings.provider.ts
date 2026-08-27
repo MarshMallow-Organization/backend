@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { BusinessException } from 'src/common/exception/businessException';
+import { HoldingsErrorCode } from '../holdings.error';
 
 /**
  * 사용자가 실제로 보유한 종목 한 건.
@@ -114,16 +117,29 @@ const STUB_HOLDINGS: readonly Holding[] = [
  * 목록을 돌려준다. 실제 구현이 들어와도 이 클래스 내부만 바뀌고
  * 호출부(PortfoliosService)는 손대지 않는다.
  *
- * PR #49에서 TossApiService가 머지되었지만, 현재 공개된 기능은
- * 종목 정보 조회(getStockfromToss)뿐이라 계좌 보유 종목을 제공하지
- * 못한다. 실제 연동은 /assets/holdings 담당자가 공유할 보유자산
- * 조회 계층의 계약이 확정된 뒤 연결한다. 그 계층이 TossApiService를
+ * 실제 토스 holdings 엔드포인트(GET /api/v1/holdings, developers.tossinvest.com
+ * 문서 확인됨)는 계좌별 인증(TossAccount.apiKey/secretKey → TossClient의
+ * tossCredentials), X-Tossinvest-Account 헤더, 통화별(krw/usd)로 나뉜
+ * 요약 금액, 문자열로 내려오는 숫자 등 지금 이 stub보다 계약이 커서
+ * 별도 작업으로 연결한다. 그 작업이 TossClient(src/domains/api/clients/toss)를
  * 확장하면 이 provider는 그 서비스를 재사용하고, 같은 서버의
  * GET /assets/holdings를 HTTP로 다시 호출하지 않는다.
+ *
+ * 그 전까지 이 stub이 배포 환경에서 실수로 동작하지 않도록
+ * HOLDINGS_STUB_ENABLED 플래그로 막아둔다(StubAuthGuard와 같은 이유:
+ * app.env는 미설정 시 'local'로 채워져 판정 기준이 될 수 없다).
  */
 @Injectable()
 export class HoldingsProvider {
-  getHoldings(userId: number): Promise<Holding[]> {
+  constructor(private readonly configService: ConfigService) {}
+
+  async getHoldings(userId: number): Promise<Holding[]> {
+    if (!this.configService.get<boolean>('holdings.stubEnabled')) {
+      throw new BusinessException(HoldingsErrorCode.HOLDINGS_UNAVAILABLE, {
+        userId,
+      });
+    }
+
     /**
      * stub이라 userId를 쓰지 않는다. 실제 구현에서는 이 값으로 토스
      * 계정을 찾으므로 시그니처에는 남겨 둔다.

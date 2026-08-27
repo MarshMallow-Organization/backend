@@ -1,6 +1,6 @@
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AssetSummaryService } from './asset-summary.service';
-import { Holding } from './holdings.provider';
+import { Holding, HoldingsProvider } from './holdings.provider';
 
 describe('AssetSummaryService', () => {
   let service: AssetSummaryService;
@@ -28,7 +28,7 @@ describe('AssetSummaryService', () => {
 
     service = new AssetSummaryService(
       prisma as unknown as PrismaService,
-      holdingsProvider,
+      holdingsProvider as unknown as HoldingsProvider,
     );
   });
 
