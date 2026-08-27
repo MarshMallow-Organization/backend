@@ -88,6 +88,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     response.status(status).json({
+      success: false,
       code,
       message: clientMessage,
 

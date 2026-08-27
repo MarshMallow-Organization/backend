@@ -233,6 +233,7 @@ describe('가상계좌 (assets/portfolios)', () => {
       const response = await createPortfolio('   ').expect(400);
 
       expect(response.body).toEqual({
+        success: false,
         code: expect.any(String) as unknown,
         message: expect.any(String) as unknown,
         traceId: expect.any(String) as unknown,

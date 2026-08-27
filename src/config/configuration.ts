@@ -50,6 +50,29 @@ export default () => ({
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
+
+  /**
+   * LocalEncryptionAdapter가 쓰는 대칭키(hex 64자리 = 32바이트).
+   *
+   * 실제 AWS KMS 키(ARN)가 준비되기 전까지 임시로 쓴다.
+   * `openssl rand -hex 32`로 생성한다.
+   */
+  encryption: {
+    localKey: process.env.LOCAL_ENCRYPTION_KEY,
+  },
+
+  /**
+   * 임시 보유종목 스텁(HoldingsProvider) 활성화 여부.
+   *
+   * auth.stubEnabled와 같은 이유로 별도 플래그를 쓴다. app.env가 미설정
+   * 시 'local'로 채워지는 걸 배포 환경 판정에 쓰면, 환경변수를 깜빡한
+   * 배포에서 모든 사용자에게 같은 가짜 자산이 노출된다. 실제 토스
+   * holdings 연동(GET /api/v1/holdings)이 붙으면 이 항목도 함께 지운다.
+   */
+  holdings: {
+    stubEnabled: process.env.HOLDINGS_STUB_ENABLED === 'true',
+  },
+
   kis: {
     appKey: process.env.KIS_APP_KEY,
     appSecret: process.env.KIS_APP_SECRET,
