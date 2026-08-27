@@ -18,7 +18,9 @@ import { PortfolioStockAddedDto } from '../dto/response/portfolio-stock-added.dt
 import { PortfolioStockRemovedDto } from '../dto/response/portfolio-stock-removed.dto';
 import { PortfolioSummaryDto } from '../dto/response/portfolio-summary.dto';
 import { PortfoliosErrorCode } from '../portfolios.error';
+import { enrichHolding } from './holding.util';
 import { HoldingsProvider } from './holdings.provider';
+import { toPercent } from './money.util';
 
 /** 사용자당 가상계좌는 최대 4개. */
 const MAX_PORTFOLIO_COUNT = 4;
@@ -42,16 +44,6 @@ const SUMMARY_SELECT = {
   sortOrder: true,
   createdAt: true,
 } as const;
-
-/**
- * 수익률은 퍼센트, 소수 2자리다.
- *
- * 부동소수점 오차 때문에 곱했다 나누는 과정에서 8.199999999999999가
- * 나올 수 있어 반올림 전에 한 번 정리한다. Number.EPSILON을 더하는
- * 흔한 요령은 음수에서 반대로 작동해 쓰지 않는다.
- */
-const toPercent = (ratio: number): number =>
-  Math.round(Number((ratio * 100).toFixed(6)) * 100) / 100;
 
 /** 명세상 보유 수량이 1주 이상인 종목만 응답에 담는다. */
 const MIN_HOLDING_QUANTITY = 1;
@@ -141,23 +133,7 @@ export class PortfoliosService {
           registeredCodes.has(holding.stockCode) &&
           holding.quantity >= MIN_HOLDING_QUANTITY,
       )
-      .map((holding) => {
-        const diff = holding.currentPrice - holding.avgBuyPrice;
-
-        return {
-          ...holding,
-          evaluationAmount: Math.round(holding.currentPrice * holding.quantity),
-          unrealizedProfit: Math.round(diff * holding.quantity),
-
-          /**
-           * avgBuyPrice가 0이면 수익률을 정의할 수 없다. 무상증자로 받은
-           * 주식이 0원으로 들어오면 실제로 생긴다. 0으로 두면 Infinity가
-           * JSON에 null로 나가 프론트가 깨진다.
-           */
-          returnRate:
-            holding.avgBuyPrice > 0 ? toPercent(diff / holding.avgBuyPrice) : 0,
-        };
-      });
+      .map(enrichHolding);
 
     /**
      * 계좌 수익률은 금액가중이다. 종목별 returnRate의 단순평균을 쓰면
