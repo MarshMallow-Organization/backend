@@ -16,3 +16,10 @@ process.env.DB_DATABASE = 'cgate_test';
  * 켜지 않으면 모든 요청이 401이라 테스트가 통째로 실패한다.
  */
 process.env.STUB_AUTH_ENABLED = 'true';
+
+/**
+ * AuthModule의 JwtStrategy가 테스트 앱 생성 시 함께 초기화되므로 테스트용
+ * secret이 필요하다. 실제 토큰 발급에 사용하는 운영 secret과는 분리한다.
+ */
+process.env.JWT_ACCESS_SECRET = 'e2e-access-secret';
+process.env.JWT_REFRESH_SECRET = 'e2e-refresh-secret';

@@ -1,5 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -26,10 +26,16 @@ const EXPECTED_DATABASE = 'cgate_test';
  * forbidNonWhitelisted가 없어, 실서버에서 미정의 필드가 400이 되지 않는다.
  * 여기서도 같은 설정을 재현해 테스트가 실제 동작과 어긋나지 않게 한다.
  */
-export const createTestApp = async (): Promise<INestApplication<App>> => {
-  const moduleFixture = await Test.createTestingModule({
+export const createTestApp = async (
+  customize?: (builder: TestingModuleBuilder) => void,
+): Promise<INestApplication<App>> => {
+  const builder = Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  });
+
+  customize?.(builder);
+
+  const moduleFixture = await builder.compile();
 
   const app = moduleFixture.createNestApplication();
 
