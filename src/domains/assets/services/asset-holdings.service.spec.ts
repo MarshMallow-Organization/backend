@@ -32,101 +32,71 @@ describe('AssetHoldingsService', () => {
     );
   });
 
-  it('보유 종목이 없으면 빈 목록과 0 페이지 정보를 반환한다', async () => {
+  it('보유 종목이 없으면 빈 목록을 반환한다', async () => {
     const result = await service.getHoldings(userId, {});
 
-    expect(result).toEqual({
-      items: [],
-      page: 0,
-      size: 10,
-      totalElements: 0,
-      totalPages: 0,
-      hasNext: false,
-    });
+    expect(result).toEqual({ items: [] });
+  });
+
+  it('각 항목은 종목명과 평가금액만 담는다', async () => {
+    holdingsProvider.getHoldings.mockResolvedValue([
+      holding({ stockName: '삼성전자', evaluationAmount: 7200000 }),
+    ]);
+
+    const result = await service.getHoldings(userId, {});
+
+    expect(result.items).toEqual([
+      { stockName: '삼성전자', evaluationAmount: 7200000 },
+    ]);
+  });
+
+  it('페이지 구분 없이 보유 종목 전체를 한 번에 반환한다', async () => {
+    holdingsProvider.getHoldings.mockResolvedValue([
+      holding({ stockCode: 'A', stockName: '종목A' }),
+      holding({ stockCode: 'B', stockName: '종목B' }),
+      holding({ stockCode: 'C', stockName: '종목C' }),
+    ]);
+
+    const result = await service.getHoldings(userId, {});
+
+    expect(result.items.map((item) => item.stockName)).toEqual([
+      '종목A',
+      '종목B',
+      '종목C',
+    ]);
   });
 
   it('숨김 처리된 종목은 목록에서 제외한다', async () => {
     holdingsProvider.getHoldings.mockResolvedValue([
-      holding({ stockCode: 'A' }),
-      holding({ stockCode: 'B' }),
+      holding({ stockCode: 'A', stockName: '보이는종목' }),
+      holding({ stockCode: 'B', stockName: '숨긴종목' }),
     ]);
     prisma.hiddenStock.findMany.mockResolvedValue([{ stockCode: 'B' }]);
 
     const result = await service.getHoldings(userId, {});
 
-    expect(result.items.map((item) => item.stockCode)).toEqual(['A']);
-    expect(result.totalElements).toBe(1);
+    expect(result.items.map((item) => item.stockName)).toEqual(['보이는종목']);
   });
 
   it('보유 수량이 0인 종목(전량 매도)은 목록에서 제외한다', async () => {
     holdingsProvider.getHoldings.mockResolvedValue([
-      holding({ stockCode: 'A' }),
-      holding({ stockCode: 'C', quantity: 0 }),
+      holding({ stockCode: 'A', stockName: '보유중' }),
+      holding({ stockCode: 'C', stockName: '전량매도', quantity: 0 }),
     ]);
 
     const result = await service.getHoldings(userId, {});
 
-    expect(result.items.map((item) => item.stockCode)).toEqual(['A']);
+    expect(result.items.map((item) => item.stockName)).toEqual(['보유중']);
   });
 
   it('symbol을 지정하면 그 종목만 반환한다', async () => {
     holdingsProvider.getHoldings.mockResolvedValue([
-      holding({ stockCode: 'A' }),
-      holding({ stockCode: 'B' }),
+      holding({ stockCode: 'A', stockName: '종목A' }),
+      holding({ stockCode: 'B', stockName: '종목B' }),
     ]);
 
     const result = await service.getHoldings(userId, { symbol: 'B' });
 
-    expect(result.items.map((item) => item.stockCode)).toEqual(['B']);
-    expect(result.totalElements).toBe(1);
-  });
-
-  it('page/size로 필터링된 결과를 슬라이싱한다', async () => {
-    holdingsProvider.getHoldings.mockResolvedValue([
-      holding({ stockCode: 'A' }),
-      holding({ stockCode: 'B' }),
-      holding({ stockCode: 'C' }),
-    ]);
-
-    const result = await service.getHoldings(userId, { page: 1, size: 1 });
-
-    expect(result.items.map((item) => item.stockCode)).toEqual(['B']);
-    expect(result).toMatchObject({
-      page: 1,
-      size: 1,
-      totalElements: 3,
-      totalPages: 3,
-      hasNext: true,
-    });
-  });
-
-  it('마지막 페이지에서는 hasNext가 false다', async () => {
-    holdingsProvider.getHoldings.mockResolvedValue([
-      holding({ stockCode: 'A' }),
-      holding({ stockCode: 'B' }),
-    ]);
-
-    const result = await service.getHoldings(userId, { page: 1, size: 1 });
-
-    expect(result.hasNext).toBe(false);
-  });
-
-  it('각 항목의 평가금액·평가손익·수익률을 계산한다', async () => {
-    holdingsProvider.getHoldings.mockResolvedValue([
-      holding({
-        stockCode: 'A',
-        quantity: 10,
-        avgBuyPrice: 1000,
-        currentPrice: 1100,
-      }),
-    ]);
-
-    const result = await service.getHoldings(userId, {});
-
-    expect(result.items[0]).toMatchObject({
-      evaluationAmount: 11000,
-      unrealizedProfit: 1000,
-      returnRate: 10,
-    });
+    expect(result.items.map((item) => item.stockName)).toEqual(['종목B']);
   });
 });

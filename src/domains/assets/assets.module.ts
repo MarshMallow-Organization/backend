@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { EncryptionModule } from 'src/common/encryption/encryption.module';
+import { ApiModule } from 'src/domains/api/api.module';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { AssetsController } from './controllers/assets.controller';
 import { PortfoliosController } from './controllers/portfolios.controller';
@@ -8,8 +10,12 @@ import { HoldingsProvider } from './services/holdings.provider';
 import { PortfoliosService } from './services/portfolios.service';
 
 @Module({
-  /** PrismaModule은 @Global이 아니라서 도메인마다 직접 import해야 한다. */
-  imports: [PrismaModule],
+  /**
+   * PrismaModule은 @Global이 아니라서 도메인마다 직접 import해야 한다.
+   * ApiModule(TossClient)·EncryptionModule(secretKey 복호화)은 HoldingsProvider가
+   * 실제 토스 API를 부르면서 필요해졌다.
+   */
+  imports: [PrismaModule, ApiModule, EncryptionModule],
   controllers: [PortfoliosController, AssetsController],
   providers: [
     PortfoliosService,
