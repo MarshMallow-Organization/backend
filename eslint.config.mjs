@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    // eslint.config.mjs: 셀프 린트 제외
+    // src/generated: Prisma 등 코드 생성 산출물이라 포맷 규칙 대상 아님
+    ignores: ['eslint.config.mjs', 'src/generated/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

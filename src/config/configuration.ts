@@ -77,5 +77,11 @@ export default () => ({
     appSecret: process.env.KIS_APP_SECRET,
     accessToken: process.env.KIS_ACCESS_TOKEN,
     approvalKey: process.env.KIS_APPROVAL_KEY,
+    /**
+     * KIS 실시간 웹소켓(OrdersWatcherService) 부팅 시 자동 연결 여부.
+     * domains/orders와 배선되기 전까지는 연결해봐야 유휴 소켓이 KIS 실전
+     * 서버에 무한 재접속만 하므로 기본값 off. 배선 완료 후 'true'로 켠다.
+     */
+    wsEnabled: process.env.KIS_WS_ENABLED === 'true',
   },
 });

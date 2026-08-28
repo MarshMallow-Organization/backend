@@ -4,6 +4,7 @@ import {
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { KisClient } from '../../clients/kis/kis.client';
 import {
   KisRealtimePriceWebSocketRequest,
@@ -33,9 +34,20 @@ export class OrdersWatcherService implements OnModuleInit, OnModuleDestroy {
   // 실시간 체결가 수신 리스너 콜백 목록
   private listeners: PriceUpdateListener[] = [];
 
-  constructor(private readonly kisClient: KisClient) {}
+  constructor(
+    private readonly kisClient: KisClient,
+    private readonly configService: ConfigService,
+  ) {}
 
   onModuleInit() {
+    // domains/orders와 배선되기 전까지는 KIS_WS_ENABLED=true일 때만 연결한다.
+    // (유휴 소켓이 KIS 실전 서버에 무한 재접속하는 것을 막기 위함)
+    if (!this.configService.get<boolean>('kis.wsEnabled')) {
+      this.logger.log(
+        '[OrdersWatcherService] KIS_WS_ENABLED 미설정 → 실시간 웹소켓 자동 연결을 건너뜁니다.',
+      );
+      return;
+    }
     this.connectWebSocket();
   }
 
