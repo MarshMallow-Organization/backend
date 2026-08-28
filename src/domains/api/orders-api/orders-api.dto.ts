@@ -47,3 +47,26 @@ export interface GetOrderApiResponseDto {
   orderedAt: string;
   rawResponse?: unknown;
 }
+
+/** KIS REST 시세 조회 결과 (orders 테이블 perAtOrder, pbrAtOrder, marketCapAtOrder 매핑용) */
+export interface StockOrderValuationDto {
+  symbol: string;
+  currentPrice?: number;
+  perAtOrder?: number;
+  pbrAtOrder?: number;
+  marketCapAtOrder?: number;
+}
+
+/** 조건부 주문 감시 등록 정보 */
+export interface WatchConditionalOrderDto {
+  orderId: number;
+  corpCode: string;
+  triggerPrice: number;
+  userId: number;
+  tradeType: 'BUY' | 'SELL';
+  quantity: number;
+  orderType: 'MARKET' | 'LIMIT';
+  price?: number;
+  accountSeq?: string | number;
+  tossCredentials?: TossCredentials;
+}
