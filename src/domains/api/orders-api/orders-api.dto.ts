@@ -31,7 +31,7 @@ export interface CancelOrderApiRequestDto {
 export interface CancelOrderApiResponseDto {
   orderId: string;
   status: string; // 취소 상태 (예: 'CANCELED')
-  canceledAt: string;
+  canceledAt?: string;
   rawResponse?: unknown;
 }
 
@@ -57,16 +57,43 @@ export interface StockOrderValuationDto {
   marketCapAtOrder?: number;
 }
 
-/** 조건부 주문 감시 등록 정보 */
-export interface WatchConditionalOrderDto {
-  orderId: number;
-  corpCode: string;
-  triggerPrice: number;
-  userId: number;
-  tradeType: 'BUY' | 'SELL';
-  quantity: number;
-  orderType: 'MARKET' | 'LIMIT';
-  price?: number;
+// ─────────────────────────────────────────────────────────────
+// 토스 조건주문(Conditional Orders) DTO
+// ─────────────────────────────────────────────────────────────
+
+export interface CreateConditionalOrderApiRequestDto extends CreateOrderApiRequestDto {
+  triggerPrice: number; // 감시 가격
+  expiredAt: string | Date; // 조건 만료 일시
+}
+
+export interface CreateConditionalOrderApiResponseDto {
+  conditionalOrderId: string;
+  rawResponse?: unknown;
+}
+
+export interface CancelConditionalOrderApiRequestDto {
+  conditionalOrderId: string;
   accountSeq?: string | number;
   tossCredentials?: TossCredentials;
+}
+
+export interface CancelConditionalOrderApiResponseDto {
+  conditionalOrderId: string;
+  success: boolean;
+}
+
+export interface GetConditionalOrderApiResponseDto {
+  conditionalOrderId: string;
+  symbol: string;
+  type: string;
+  status: string;
+  quantity: number;
+  orderType: 'MARKET' | 'LIMIT';
+  expireDate: string;
+  tradeType: 'BUY' | 'SELL';
+  triggerPrice: number;
+  orderPrice?: number;
+  triggeredOrderId?: string | null;
+  createdAt: string;
+  rawResponse?: unknown;
 }

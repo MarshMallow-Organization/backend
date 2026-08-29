@@ -1,65 +1,39 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { TossClient } from '../../clients/toss/toss.client';
 import { KisClient } from '../../clients/kis/kis.client';
-import { OrdersWatcherService } from './orders-watcher.service';
 import {
   CreateOrderApiRequestDto,
   CreateOrderApiResponseDto,
   CancelOrderApiRequestDto,
   CancelOrderApiResponseDto,
   GetOrderApiResponseDto,
+  CreateConditionalOrderApiRequestDto,
+  CreateConditionalOrderApiResponseDto,
+  CancelConditionalOrderApiRequestDto,
+  CancelConditionalOrderApiResponseDto,
+  GetConditionalOrderApiResponseDto,
   StockOrderValuationDto,
-  WatchConditionalOrderDto,
 } from '../orders-api.dto';
 import {
   TossOrderRawRequest,
   TossOrderRawResponse,
   TossCancelOrderRawResponse,
   TossOrderDetailRawResponse,
+  TossConditionalOrderRawRequest,
+  TossConditionalOrderRawResponse,
+  TossConditionalOrderDetailRawResponse,
 } from '../orders-api.type';
 import { TossCredentials } from '../../clients/toss/toss.types';
-import {
-  KisStockPrice1Response,
-  KisRealtimePriceResponse,
-} from '../../clients/kis/kis.types';
-
-export type ConditionalOrderTriggerCallback = (
-  orderId: number,
-  executedPrice: number,
-  tossOrderId: string,
-) => Promise<void>;
+import { KisStockPrice1Response } from '../../clients/kis/kis.types';
 
 @Injectable()
-export class OrdersApiService implements OnModuleInit {
+export class OrdersApiService {
   private readonly logger = new Logger(OrdersApiService.name);
-
-  // 감시 중인 조건부 주문 맵: corpCode -> WatchConditionalOrderDto[]
-  private watchedOrders = new Map<string, WatchConditionalOrderDto[]>();
-  private triggerCallback: ConditionalOrderTriggerCallback | null = null;
 
   constructor(
     private readonly tossClient: TossClient,
     private readonly kisClient: KisClient,
-    private readonly ordersWatcherService: OrdersWatcherService,
   ) {}
-
-  onModuleInit() {
-    // 실시간 웹소켓 틱 수신 시 목표가 비교 및 자동 주문 집행 파이프라인 연결
-    this.ordersWatcherService.onPriceUpdate(
-      async (tick: KisRealtimePriceResponse) => {
-        await this.handleRealtimePrice(tick);
-      },
-    );
-  }
-
-  /**
-   * 조건부 주문 목표가 도달 시 DB 상태 갱신 등을 수행할 콜백 등록
-   */
-  setConditionalOrderTriggerCallback(
-    callback: ConditionalOrderTriggerCallback,
-  ) {
-    this.triggerCallback = callback;
-  }
 
   // ─────────────────────────────────────────────────────────────
   // 1. KIS REST API: 주문 시점 재무/시세 지표 조회 (PER, PBR, 시가총액)
@@ -106,115 +80,11 @@ export class OrdersApiService implements OnModuleInit {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. KIS WebSocket: 조건부 주문 실시간 목표가 감시
+  // 2. Toss REST API: 일반 주문 (생성 / 취소 / 조회)
   // ─────────────────────────────────────────────────────────────
 
   /**
-   * 신규 조건부 주문 감시 등록
-   */
-  async startWatchingOrder(order: WatchConditionalOrderDto) {
-    const existing = this.watchedOrders.get(order.corpCode) ?? [];
-    existing.push(order);
-    this.watchedOrders.set(order.corpCode, existing);
-
-    await this.ordersWatcherService.subscribe(order.corpCode);
-    this.logger.log(
-      `[OrdersApiService] 조건부 주문 감시 등록: 종목=${order.corpCode}, 주문ID=${order.orderId}, 목표가=${order.triggerPrice}`,
-    );
-  }
-
-  /**
-   * 조건부 주문 감시 해제 (취소/체결 시)
-   */
-  async stopWatchingOrder(corpCode: string, orderId: number) {
-    const existing = this.watchedOrders.get(corpCode) ?? [];
-    const filtered = existing.filter((item) => item.orderId !== orderId);
-
-    if (filtered.length === 0) {
-      this.watchedOrders.delete(corpCode);
-    } else {
-      this.watchedOrders.set(corpCode, filtered);
-    }
-
-    await this.ordersWatcherService.unsubscribe(corpCode);
-    this.logger.log(
-      `[OrdersApiService] 조건부 주문 감시 해제: 종목=${corpCode}, 주문ID=${orderId}`,
-    );
-  }
-
-  /**
-   * 서버 재시작 시 DB에서 복구된 미체결 조건부 주문 목록을 일괄 감시 등록
-   */
-  async restorePendingWatchers(orders: WatchConditionalOrderDto[]) {
-    for (const order of orders) {
-      await this.startWatchingOrder(order);
-    }
-    this.logger.log(
-      `[OrdersApiService] 미체결 조건부 주문 ${orders.length}건 감시 복구 완료`,
-    );
-  }
-
-  /**
-   * 실시간 체결가 수신 시 목표가 비교 및 자동 토스 주문 집행
-   */
-  private async handleRealtimePrice(tick: KisRealtimePriceResponse) {
-    const orders = this.watchedOrders.get(tick.symbol);
-    if (!orders || orders.length === 0) return;
-
-    for (const order of [...orders]) {
-      const isReached =
-        order.tradeType === 'BUY'
-          ? tick.currentPrice <= order.triggerPrice // 매수: 목표가 이하 도달 시
-          : tick.currentPrice >= order.triggerPrice; // 매도: 목표가 이상 도달 시
-
-      if (isReached) {
-        this.logger.log(
-          `🎯 [조건부 목표가 도달!] 종목=${tick.symbol}, 현재가=${tick.currentPrice}, 목표가=${order.triggerPrice} (주문ID: ${order.orderId})`,
-        );
-
-        try {
-          // 1. 토스증권 API로 실제 주문 집행
-          const tossResponse = await this.createOrder({
-            symbol: order.corpCode,
-            tradeType: order.tradeType,
-            orderType: order.orderType,
-            quantity: order.quantity,
-            price: order.price ?? tick.currentPrice,
-            accountSeq: order.accountSeq,
-            tossCredentials: order.tossCredentials,
-          });
-
-          this.logger.log(
-            `✅ [토스 자동 주문 성공] 주문ID=${order.orderId}, TossOrderId=${tossResponse.orderId}`,
-          );
-
-          // 2. 감시 목록에서 해제
-          await this.stopWatchingOrder(order.corpCode, order.orderId);
-
-          // 3. 상위 도메인 콜백 호출 (DB 상태 FILLED 갱신 등)
-          if (this.triggerCallback) {
-            await this.triggerCallback(
-              order.orderId,
-              tick.currentPrice,
-              tossResponse.orderId,
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            `❌ [토스 자동 주문 실패] 주문ID=${order.orderId}:`,
-            error,
-          );
-        }
-      }
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // 3. Toss REST API: 주문 생성 / 취소 / 조회
-  // ─────────────────────────────────────────────────────────────
-
-  /**
-   * 토스증권에 주문 생성 요청 (매수/매도)
+   * 토스증권에 일반 주문 생성 요청 (매수/매도)
    */
   async createOrder(
     dto: CreateOrderApiRequestDto,
@@ -257,7 +127,7 @@ export class OrdersApiService implements OnModuleInit {
   }
 
   /**
-   * 토스증권에 주문 취소 요청
+   * 토스증권에 일반 주문 취소 요청
    */
   async cancelOrder(
     dto: CancelOrderApiRequestDto,
@@ -287,7 +157,7 @@ export class OrdersApiService implements OnModuleInit {
   }
 
   /**
-   * 토스증권 주문 상태 및 체결 내역 조회
+   * 토스증권 일반 주문 상태 및 체결 내역 조회
    */
   async getOrder(
     orderId: string,
@@ -320,6 +190,140 @@ export class OrdersApiService implements OnModuleInit {
       price: rawResponse.price,
       status: rawResponse.status,
       orderedAt: rawResponse.createdAt,
+      rawResponse,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 3. Toss REST API: 조건부 주문 (생성 / 취소 / 조회)
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * 토스증권에 조건부 주문 생성 요청 (POST /api/v1/conditional-orders)
+   */
+  async createConditionalOrder(
+    dto: CreateConditionalOrderApiRequestDto,
+  ): Promise<CreateConditionalOrderApiResponseDto> {
+    this.logger.log(
+      `[OrdersApiService] 토스 createConditionalOrder 요청: ${JSON.stringify(dto)}`,
+    );
+
+    const expireDate =
+      typeof dto.expiredAt === 'string'
+        ? dto.expiredAt.slice(0, 10)
+        : dto.expiredAt.toISOString().slice(0, 10);
+
+    const rawRequest: TossConditionalOrderRawRequest = {
+      symbol: dto.symbol,
+      type: 'SINGLE',
+      quantity: String(dto.quantity),
+      orderType: dto.orderType,
+      expireDate,
+      first: {
+        orderSide: dto.tradeType,
+        triggerPrice: String(dto.triggerPrice),
+        ...(dto.orderType === 'LIMIT' &&
+          dto.price !== undefined &&
+          dto.price !== null && {
+            orderPrice: String(dto.price),
+          }),
+      },
+    };
+
+    const accountSeq = dto.accountSeq ?? '1';
+
+    const rawResponse =
+      await this.tossClient.request<TossConditionalOrderRawResponse>(
+        '/conditional-orders',
+        {
+          method: 'POST',
+          headers: {
+            'X-Tossinvest-Account': String(accountSeq),
+          },
+          body: JSON.stringify(rawRequest),
+          tossCredentials: dto.tossCredentials,
+        },
+      );
+
+    return {
+      conditionalOrderId: rawResponse.result.conditionalOrderId,
+      rawResponse,
+    };
+  }
+
+  /**
+   * 토스증권에 조건부 주문 취소 요청 (DELETE /api/v1/conditional-orders/{conditionalOrderId})
+   */
+  async cancelConditionalOrder(
+    dto: CancelConditionalOrderApiRequestDto,
+  ): Promise<CancelConditionalOrderApiResponseDto> {
+    this.logger.log(
+      `[OrdersApiService] 토스 cancelConditionalOrder 요청: ${dto.conditionalOrderId}`,
+    );
+
+    const accountSeq = dto.accountSeq ?? '1';
+
+    await this.tossClient.request<void>(
+      `/conditional-orders/${dto.conditionalOrderId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'X-Tossinvest-Account': String(accountSeq),
+        },
+        tossCredentials: dto.tossCredentials,
+      },
+    );
+
+    return {
+      conditionalOrderId: dto.conditionalOrderId,
+      success: true,
+    };
+  }
+
+  /**
+   * 토스증권 조건부 주문 상세 조회 (GET /api/v1/conditional-orders/{conditionalOrderId})
+   */
+  async getConditionalOrder(
+    conditionalOrderId: string,
+    accountSeq: string | number = '1',
+    tossCredentials?: TossCredentials,
+  ): Promise<GetConditionalOrderApiResponseDto> {
+    this.logger.log(
+      `[OrdersApiService] 토스 getConditionalOrder 조회 요청: ${conditionalOrderId}`,
+    );
+
+    const seq = accountSeq ?? '1';
+
+    const rawResponse =
+      await this.tossClient.request<TossConditionalOrderDetailRawResponse>(
+        `/conditional-orders/${conditionalOrderId}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Tossinvest-Account': String(seq),
+          },
+          tossCredentials,
+        },
+      );
+
+    const res = rawResponse.result;
+
+    return {
+      conditionalOrderId: res.conditionalOrderId,
+      symbol: res.symbol,
+      type: res.type,
+      status: res.status,
+      quantity: Number(res.quantity),
+      orderType: res.orderType,
+      expireDate: res.expireDate,
+      tradeType:
+        (res.first as { orderSide?: 'BUY' | 'SELL' }).orderSide ?? 'BUY',
+      triggerPrice: res.first.triggerPrice ? Number(res.first.triggerPrice) : 0,
+      orderPrice: res.first.orderPrice
+        ? Number(res.first.orderPrice)
+        : undefined,
+      triggeredOrderId: res.first.triggeredOrderId ?? null,
+      createdAt: res.createdAt,
       rawResponse,
     };
   }
