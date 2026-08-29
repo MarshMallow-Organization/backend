@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { TossClient } from '../clients/toss/toss.client';
-import type { TossStockResponse } from '../clients/toss/toss.types';
+import type {
+  TossListedStockResponse,
+  TossStockResponse,
+} from '../clients/toss/toss.types';
 import { MarketsApiService } from './markets-api.service';
 
 describe('MarketsApiService', () => {
   const request =
     jest.fn<
-      (endpoint: string, options?: RequestInit) => Promise<TossStockResponse>
+      (
+        endpoint: string,
+        options?: RequestInit,
+      ) => Promise<TossStockResponse | TossListedStockResponse>
     >();
 
   let service: MarketsApiService;
@@ -76,5 +82,40 @@ describe('MarketsApiService', () => {
     const result = await service.getStock('005930');
 
     expect(result?.koreanMarketDetail?.nxtTradingSuspended).toBeNull();
+  });
+
+  it('시장별 전체 종목을 조회하고 내부 DTO 형식으로 변환한다', async () => {
+    request.mockResolvedValue({
+      result: [
+        {
+          symbol: '005930',
+          name: '삼성전자',
+          securityType: 'STOCK',
+          isCommonShare: true,
+          isinCode: 'KR7005930003',
+        },
+      ],
+    });
+
+    await expect(service.getStocksByMarket('KOSPI')).resolves.toEqual([
+      {
+        stockCode: '005930',
+        name: '삼성전자',
+        market: 'KOSPI',
+        securityType: 'STOCK',
+        isCommonShare: true,
+        isinCode: 'KR7005930003',
+      },
+    ]);
+    expect(request).toHaveBeenCalledWith(
+      '/stocks/all?market=KOSPI&status=ACTIVE',
+      { method: 'GET' },
+    );
+  });
+
+  it('시장별 전체 종목 응답이 비어 있으면 빈 배열을 반환한다', async () => {
+    request.mockResolvedValue({ result: [] });
+
+    await expect(service.getStocksByMarket('NASDAQ')).resolves.toEqual([]);
   });
 });

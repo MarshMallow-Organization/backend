@@ -21,3 +21,12 @@ export interface MarketsStockApiDto {
   leverageFactor: string | null;
   koreanMarketDetail: MarketsKoreanMarketDetailApiDto | null;
 }
+
+export interface MarketsListedStockApiDto {
+  stockCode: string;
+  name: string;
+  market: string;
+  securityType: string;
+  isCommonShare: boolean;
+  isinCode: string;
+}
