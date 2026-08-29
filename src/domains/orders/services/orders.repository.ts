@@ -13,9 +13,10 @@ export class OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   // 1. (조건부)주문 생성
-  async create(userId: number, dto: CreateOrderDto) {
+  async create(userId: number, dto: CreateOrderDto, externalOrderId?: string) {
     return await this.prisma.order.create({
       data: {
+        externalOrderId: externalOrderId ?? null,
         orderType: dto.orderType,
         orderCategory: dto.orderCategory,
         tradeType: dto.tradeType,
@@ -77,10 +78,24 @@ export class OrdersRepository {
     });
   }
 
-  // 3. 주문 단건 조회
-  async findById(id: number, userId: number) {
+  // 3. 주문 단건 조회 (id 또는 externalOrderId 기준)
+  async findById(
+    identifier: number | { id?: number; externalOrderId?: string },
+    userId?: number,
+  ) {
+    const where: Prisma.OrderWhereInput =
+      typeof identifier === 'number'
+        ? { id: identifier, ...(userId !== undefined && { userId }) }
+        : {
+            ...(identifier.id !== undefined && { id: identifier.id }),
+            ...(identifier.externalOrderId !== undefined && {
+              externalOrderId: identifier.externalOrderId,
+            }),
+            ...(userId !== undefined && { userId }),
+          };
+
     return await this.prisma.order.findFirst({
-      where: { id, userId },
+      where,
       include: {
         orderCondition: true,
         snapshot: {
@@ -129,6 +144,9 @@ export class OrdersRepository {
           status: OrderStatus.PENDING,
         },
         data: {
+          ...(dto.externalOrderId !== undefined && {
+            externalOrderId: dto.externalOrderId,
+          }),
           ...(dto.corpCode !== undefined && { corpCode: dto.corpCode }),
           ...(dto.corpName !== undefined && { corpName: dto.corpName }),
           ...(dto.perAtOrder !== undefined && { perAtOrder: dto.perAtOrder }),

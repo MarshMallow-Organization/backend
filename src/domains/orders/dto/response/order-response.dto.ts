@@ -50,6 +50,7 @@ export type OrderEntity = Order & {
 
 export class OrderResponseDto {
   id: number;
+  externalOrderId?: string | null;
   orderType: OrderType;
   orderCategory: OrderCategory;
   tradeType: TradeType;
@@ -69,6 +70,7 @@ export class OrderResponseDto {
   static from(entity: OrderEntity): OrderResponseDto {
     const dto = new OrderResponseDto();
     dto.id = entity.id;
+    dto.externalOrderId = entity.externalOrderId ?? null;
     dto.orderType = entity.orderType;
     dto.orderCategory = entity.orderCategory;
     dto.tradeType = entity.tradeType;
