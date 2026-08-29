@@ -359,6 +359,7 @@ enum OrderCategory {
 model Order {
   id Int @id @default(autoincrement())
 
+  externalOrderId  String?       @unique
   orderType        OrderType     @default(MARKET)
   orderCategory    OrderCategory @default(GENERAL)
   tradeType        TradeType
