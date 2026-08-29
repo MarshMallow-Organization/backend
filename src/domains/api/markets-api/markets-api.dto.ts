@@ -1,3 +1,7 @@
+import type { TossStockMarket } from '../clients/toss/toss.types';
+
+export type MarketsStockMarket = TossStockMarket;
+
 export interface MarketsKoreanMarketDetailApiDto {
   liquidationTrading: boolean;
   nxtSupported: boolean;
@@ -25,7 +29,7 @@ export interface MarketsStockApiDto {
 export interface MarketsListedStockApiDto {
   stockCode: string;
   name: string;
-  market: string;
+  market: MarketsStockMarket;
   securityType: string;
   isCommonShare: boolean;
   isinCode: string;

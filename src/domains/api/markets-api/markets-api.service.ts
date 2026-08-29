@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { TossClient } from '../clients/toss/toss.client';
 import type {
-  TossStockResponse,
   TossListedStockResponse,
-  TossStockMarket,
+  TossStockResponse,
 } from '../clients/toss/toss.types';
 import type {
-  MarketsStockApiDto,
   MarketsListedStockApiDto,
+  MarketsStockApiDto,
+  MarketsStockMarket,
 } from './markets-api.dto';
 
 @Injectable()
@@ -50,7 +50,7 @@ export class MarketsApiService {
     };
   }
   async getStocksByMarket(
-    market: TossStockMarket,
+    market: MarketsStockMarket,
   ): Promise<MarketsListedStockApiDto[]> {
     const queryParams = new URLSearchParams({
       market,
