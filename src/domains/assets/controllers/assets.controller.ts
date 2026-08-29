@@ -13,12 +13,12 @@ import { JwtAuthGuard } from 'src/domains/auth/guards/jwt-auth.guard';
 import { GetHoldingsQueryDto } from '../dto/request/get-holdings-query.dto';
 import { AssetSummaryResponseDto } from '../dto/response/asset-summary-response.dto';
 import { GetHoldingsResponseDto } from '../dto/response/get-holdings-response.dto';
-import { HoldingDto } from '../dto/response/holding.dto';
+import { HoldingItemDto } from '../dto/response/holding-item.dto';
 import { AssetHoldingsService } from '../services/asset-holdings.service';
 import { AssetSummaryService } from '../services/asset-summary.service';
 
 @ApiTags('Assets')
-@ApiExtraModels(AssetSummaryResponseDto, GetHoldingsResponseDto, HoldingDto)
+@ApiExtraModels(AssetSummaryResponseDto, GetHoldingsResponseDto, HoldingItemDto)
 @ApiBearerAuth()
 @Controller('assets')
 @UseGuards(JwtAuthGuard)
@@ -44,9 +44,9 @@ export class AssetsController {
 
   @Get('holdings')
   @ApiOperation({
-    summary: '보유 종목 상세 목록 조회',
+    summary: '보유 종목 목록 조회',
     description:
-      '숨김 처리되지 않은 보유 종목만 페이지네이션으로 조회한다. symbol을 주면 그 종목만 조회한다.',
+      '숨김 처리되지 않은 보유 종목 전체를 종목명·평가금액만 담아 조회한다. symbol을 주면 그 종목만 조회한다.',
   })
   @ApiOkResponse({
     description: '조회 성공',
