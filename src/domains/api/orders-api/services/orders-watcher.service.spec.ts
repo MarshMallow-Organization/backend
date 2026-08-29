@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { OrdersWatcherService } from './orders-watcher.service';
 import { KisClient } from '../../clients/kis/kis.client';
 import { KisRealtimePriceResponse } from '../../clients/kis/kis.types';
@@ -21,6 +22,10 @@ describe('OrdersWatcherService', () => {
         {
           provide: KisClient,
           useValue: mockKisClient,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(false) },
         },
       ],
     }).compile();
