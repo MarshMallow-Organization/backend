@@ -26,6 +26,7 @@
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand --forceExit"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.1121.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
