@@ -11,10 +11,9 @@ import { EncryptionAdapter } from './encryption.adapter';
  * 암호화해야 하면 GenerateDataKey로 봉투 암호화를 써야 한다). 암호문은
  * KMS가 돌려주는 CiphertextBlob을 base64로 인코딩해 그대로 저장한다.
  *
- * LocalEncryptionAdapter와 같은 이유로 클라이언트를 생성자가 아니라
- * 실제 호출 시점에 만든다. ENCRYPTION_PROVIDER가 'local'이면 이
- * 어댑터는 등록만 되고 실제로 쓰이지 않는데, 그 상태에서 AWS 관련
- * env가 없다고 앱 부팅 자체가 죽으면 안 되기 때문이다.
+ * 클라이언트를 생성자가 아니라 실제 호출 시점에 만든다. AWS 관련 env가
+ * 아직 없는 상태(예: 로컬 셋업 전)에서도 앱 부팅 자체는 죽지 않게
+ * 하기 위해서다 — encrypt/decrypt를 실제로 호출할 때만 검증한다.
  */
 @Injectable()
 export class AwsKmsEncryptionAdapter implements EncryptionAdapter {
@@ -28,13 +27,13 @@ export class AwsKmsEncryptionAdapter implements EncryptionAdapter {
       return { client: this.client, keyArn: this.keyArn };
     }
 
-    const region = this.configService.get<string>('encryption.kms.region');
-    const keyArn = this.configService.get<string>('encryption.kms.keyArn');
+    const region = this.configService.get<string>('encryption.region');
+    const keyArn = this.configService.get<string>('encryption.keyArn');
     const accessKeyId = this.configService.get<string>(
-      'encryption.kms.accessKeyId',
+      'encryption.accessKeyId',
     );
     const secretAccessKey = this.configService.get<string>(
-      'encryption.kms.secretAccessKey',
+      'encryption.secretAccessKey',
     );
 
     if (!region || !keyArn) {

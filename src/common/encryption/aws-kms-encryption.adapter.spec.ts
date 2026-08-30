@@ -17,10 +17,10 @@ describe('AwsKmsEncryptionAdapter', () => {
     jest.clearAllMocks();
 
     configValues = {
-      'encryption.kms.region': 'ap-northeast-2',
-      'encryption.kms.keyArn': KEY_ARN,
-      'encryption.kms.accessKeyId': 'AKIAEXAMPLE',
-      'encryption.kms.secretAccessKey': 'secret',
+      'encryption.region': 'ap-northeast-2',
+      'encryption.keyArn': KEY_ARN,
+      'encryption.accessKeyId': 'AKIAEXAMPLE',
+      'encryption.secretAccessKey': 'secret',
     };
     configService = {
       get: jest.fn((key: string) => configValues[key]),
@@ -54,7 +54,7 @@ describe('AwsKmsEncryptionAdapter', () => {
   });
 
   it('AWS_REGION 또는 AWS_KMS_KEY_ARN이 없으면 에러를 던진다', async () => {
-    configValues['encryption.kms.region'] = undefined;
+    configValues['encryption.region'] = undefined;
 
     await expect(createAdapter().encrypt('x')).rejects.toThrow();
     expect(sendMock).not.toHaveBeenCalled();
@@ -73,8 +73,8 @@ describe('AwsKmsEncryptionAdapter', () => {
   });
 
   it('액세스키/시크릿이 없으면 credentials 없이 클라이언트를 만든다(SDK 기본 자격증명 체인에 위임)', async () => {
-    configValues['encryption.kms.accessKeyId'] = undefined;
-    configValues['encryption.kms.secretAccessKey'] = undefined;
+    configValues['encryption.accessKeyId'] = undefined;
+    configValues['encryption.secretAccessKey'] = undefined;
     sendMock.mockResolvedValue({ CiphertextBlob: Buffer.from('c') });
 
     await createAdapter().encrypt('x');
