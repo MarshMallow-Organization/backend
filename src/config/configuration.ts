@@ -50,14 +50,17 @@ export default () => ({
     clientSecret: process.env.TOSS_CLIENT_SECRET,
     accessToken: process.env.TOSS_ACCESS_TOKEN,
   },
-  /**
-   * LocalEncryptionAdapter가 쓰는 대칭키(hex 64자리 = 32바이트).
-   *
-   * 실제 AWS KMS 키(ARN)가 준비되기 전까지 임시로 쓴다.
-   * `openssl rand -hex 32`로 생성한다.
-   */
+  /** AwsKmsEncryptionAdapter(EncryptionAdapter의 유일한 구현체)가 쓰는 값들. */
   encryption: {
-    localKey: process.env.LOCAL_ENCRYPTION_KEY,
+    region: process.env.AWS_REGION,
+    keyArn: process.env.AWS_KMS_KEY_ARN,
+    /**
+     * 로컬 개발은 IAM 사용자 액세스키/시크릿을 쓴다. 배포 환경에서
+     * IAM 롤을 쓰면 이 둘은 비워두고, AwsKmsEncryptionAdapter가 SDK
+     * 기본 자격증명 체인에 맡기게 한다.
+     */
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
 
   /**
