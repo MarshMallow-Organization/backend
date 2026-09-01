@@ -1,0 +1,229 @@
+# ============================================================================
+# CD (Continuous Deployment) 워크플로우
+#
+# 큰 그림
+#   main push
+#     └─▶ [ci]  lint + build            (코드 검증)
+#           └─▶ [deploy]                (needs: ci → ci 성공 시에만)
+#                 1) GitHub Actions 러너에서 docker build
+#                 2) OIDC로 AWS IAM Role 인증 → ECR에 이미지 push
+#                 3) SSH(EC2_SSH_KEY)로 EC2 접속
+#                 4) EC2가 자기 IAM Role로 ECR에서 pull → 백엔드 컨테이너만 교체
+#
+# 인증 방식이 두 군데서 서로 다르게 쓰인다. 헷갈리기 쉬우니 step마다 주석으로 표시한다.
+#   - 러너 → AWS(ECR)  : GitHub OIDC + IAM Role  (장기 Access Key 없음)
+#   - 러너 → EC2        : SSH private key (Secrets의 EC2_SSH_KEY)
+#   - EC2  → AWS(ECR)  : EC2 인스턴스 프로파일에 붙은 IAM Role (키 파일 없음)
+# ============================================================================
+
+name: CD Deploy
+
+on:
+  # main 브랜치에 커밋이 들어올 때만 배포한다.
+  # (feature 브랜치 push는 ci.yaml만 돌고 여기는 실행되지 않는다.)
+  push:
+    branches: [main]
+
+  # GitHub Actions 화면에서 수동 배포도 가능하게 열어둔다.
+  workflow_dispatch:
+
+# ----------------------------------------------------------------------------
+# 이 워크플로우가 사용할 권한(GITHUB_TOKEN의 스코프).
+#   id-token: write  → GitHub OIDC 토큰 발급 권한. 이게 있어야 러너가
+#                      aws-actions/configure-aws-credentials로 IAM Role을
+#                      "assume"할 수 있다. (없으면 Access Key 방식으로 회귀해야 함)
+#   contents: read   → 소스 체크아웃용. 그 이상은 주지 않는다(최소 권한).
+# ----------------------------------------------------------------------------
+permissions:
+  id-token: write
+  contents: read
+
+# 같은 브랜치 배포가 겹쳐 돌지 않도록 직렬화한다.
+# cancel-in-progress: false → 이미 EC2에 배포 중인 작업은 끝까지 진행시키고,
+#                             새 배포는 그 뒤에 줄 세운다.
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ==========================================================================
+  # job 1: ci  —  배포 전 코드 검증
+  #
+  # 참고) "다른 파일(ci.yaml)의 job이 통과하면"이라는 조건을 거는 방법은 3가지다.
+  #   (a) 지금처럼 CD 파일 안에 검증 job을 다시 두고 deploy가 needs로 참조   ← 채택
+  #   (b) ci.yaml을 workflow_call(재사용 워크플로우)로 만들어 여기서 호출
+  #   (c) on.workflow_run 트리거로 "CI Check 완료됨" 이벤트를 구독
+  # needs 는 "같은 워크플로우 파일 안의 job" 끼리만 걸 수 있어서, 요구사항의
+  # "needs로 의존관계" 를 그대로 만족시키려면 (a)가 가장 단순하다.
+  # ==========================================================================
+  ci:
+    name: CI (lint & build)
+    runs-on: ubuntu-latest
+    steps:
+      # 러너에 저장소 코드를 내려받는다. (인증: GITHUB_TOKEN, 자동)
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run lint
+        run: yarn lint
+
+      - name: Build
+        run: yarn build
+
+  # ==========================================================================
+  # job 2: deploy  —  이미지 빌드 → ECR push → EC2 배포
+  # ==========================================================================
+  deploy:
+    name: Build image, push to ECR, deploy to EC2
+    runs-on: ubuntu-latest
+
+    # ── 핵심: ci job이 성공해야만 이 job이 시작된다. ──
+    # ci가 실패하면 deploy는 아예 실행되지 않는다(skipped).
+    needs: ci
+
+    # 이 job 안의 여러 step이 공유할 값. 태그를 한 곳에서 정의해 재사용한다.
+    #   vars.*    = Actions "Variables" 탭. 민감하지 않은 값(레포 이름, 리전).
+    #   secrets.* = Actions "Secrets" 탭. 암호화 + 로그 마스킹되는 값(키, 호스트 등).
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      # 불변 태그: 커밋 SHA. "지금 배포된 게 정확히 어느 커밋인지" 추적/롤백용.
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      # ----------------------------------------------------------------------
+      # 2-0. 소스 체크아웃
+      #   Dockerfile, docker-compose.*.yml 등이 필요하므로 러너로 내려받는다.
+      #   인증: GITHUB_TOKEN (자동)
+      # ----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ----------------------------------------------------------------------
+      # 2-1. [인증: GitHub OIDC → AWS IAM Role]  러너에 임시 AWS 자격증명 주입
+      #
+      #   동작 원리
+      #     - 러너가 GitHub이 서명한 OIDC 토큰(신분증)을 발급받는다.
+      #       (위 permissions.id-token: write 덕분에 가능)
+      #     - 그 토큰을 AWS STS에 제시하고 role-to-assume 역할을 잠시 빌린다.
+      #     - 결과로 15분~1시간짜리 임시 키가 러너 환경변수에 세팅된다.
+      #   → 저장소에 영구 Access Key를 두지 않아도 된다(키 유출 위험 제거).
+      #
+      #   사전 준비(AWS 쪽): 해당 IAM Role의 신뢰 정책에
+      #     token.actions.githubusercontent.com 를 OIDC provider로 등록하고,
+      #     이 저장소(repo:MarshMallow-Organization/backend:*)만 assume 가능하도록 제한.
+      # ----------------------------------------------------------------------
+      - name: Configure AWS credentials (OIDC / IAM Role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ----------------------------------------------------------------------
+      # 2-2. [인증: 위에서 받은 임시 IAM 자격증명]  ECR 로그인
+      #   내부적으로 `aws ecr get-login-password` 를 실행해 docker가 ECR
+      #   레지스트리에 push할 수 있도록 로그인해준다.
+      #   outputs.registry = <account-id>.dkr.ecr.<region>.amazonaws.com
+      # ----------------------------------------------------------------------
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ----------------------------------------------------------------------
+      # 2-3. docker build  +  태그 2개 부여
+      #   - <registry>/<repo>:<git-sha>  ← 불변, 추적/롤백용
+      #   - <registry>/<repo>:latest     ← 가변, "가장 최근 배포본" 포인터
+      #   두 태그는 같은 이미지를 가리킨다(-t 를 두 번 줬을 뿐 빌드는 1회).
+      #   인증: 불필요(로컬 빌드). push는 다음 step에서.
+      # ----------------------------------------------------------------------
+      - name: Build Docker image (tag with SHA and latest)
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}"
+          docker build \
+            -f Dockerfile \
+            -t "${IMAGE_URI}:${IMAGE_TAG}" \
+            -t "${IMAGE_URI}:latest" \
+            .
+
+      # ----------------------------------------------------------------------
+      # 2-4. [인증: 임시 IAM 자격증명 + 2-2의 ECR 로그인]  두 태그 모두 push
+      #   `docker push --all-tags` 로 이 repo에 대한 로컬 태그를 전부 올린다.
+      #   (SHA 태그와 latest 태그가 함께 올라간다.)
+      # ----------------------------------------------------------------------
+      - name: Push image to ECR (both tags)
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}"
+          docker push "${IMAGE_URI}:${IMAGE_TAG}"
+          docker push "${IMAGE_URI}:latest"
+
+      # ----------------------------------------------------------------------
+      # 2-5. [인증: SSH private key]  EC2에 접속해 배포 스크립트 실행
+      #
+      #   appleboy/ssh-action 이 Secrets의 EC2_SSH_KEY(개인키)로 SSH 세션을 연다.
+      #   - host / username : 접속 대상
+      #   - key             : 개인키 원문(-----BEGIN ... KEY----- 전체)
+      #   - envs            : 러너의 env 값을 원격 셸에 환경변수로 전달
+      #                       (개인키 인증이라 AWS 자격증명은 넘기지 않는다!)
+      #
+      #   ⚠️ EC2 안에서는 AWS Access Key를 쓰지 않는다.
+      #      EC2 인스턴스에 부여된 IAM Role(인스턴스 프로파일)로 ECR에 접근한다.
+      #      → EC2에 aws CLI가 설치돼 있고, 그 Role에 ECR read 권한이 있어야 한다.
+      # ----------------------------------------------------------------------
+      - name: Deploy on EC2 over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # 원격 셸에서 쓸 값들을 넘긴다. 아래 script 안에서 $VAR 로 참조.
+          envs: AWS_REGION,ECR_REPOSITORY,IMAGE_TAG,ECR_REGISTRY,DEPLOY_DIR
+          # ECR_REGISTRY 는 러너에서만 아는 값이라 여기서 별도로 넘겨준다.
+          # DEPLOY_DIR 는 EC2에서 compose 파일이 놓인 경로.
+          # (경로/유저는 실제 서버에 맞게 수정)
+          # ↓ appleboy/ssh-action 은 with.envs 에 나열된 이름을
+          #   job env 또는 아래 environment 컨텍스트에서 찾는다.
+          script_stop: true # 스크립트 중 한 줄이라도 실패하면 즉시 중단(비정상 종료)
+          script: |
+            set -euo pipefail
+
+            # EC2 인스턴스 IAM Role로 ECR 로그인.
+            # get-login-password 는 인스턴스 프로파일 자격증명을 자동으로 사용한다.
+            aws ecr get-login-password --region "$AWS_REGION" \
+              | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+            cd "$DEPLOY_DIR"
+
+            # 백엔드 compose 파일만 대상으로 한다.
+            # DB(docker-compose.db.yml)는 건드리지 않으므로 데이터/커넥션 유지.
+            #
+            #   pull   : ECR에서 latest 이미지 새로 받기
+            #   up -d  : 이미지가 바뀐 컨테이너만 재생성(recreate)
+            #
+            # ※ "docker compose restart" 는 컨테이너를 껐다 켜기만 할 뿐
+            #    새로 받은 이미지로 교체하지 않는다. 새 이미지를 반영하려면
+            #    반드시 `up -d`(또는 --force-recreate) 를 써야 한다.
+            docker compose -f docker-compose.backend.yml pull
+            docker compose -f docker-compose.backend.yml up -d
+
+            # 배포 후 남은 dangling 이미지 정리(디스크 확보). 실패해도 무시.
+            docker image prune -f || true
+
+        # with.envs 로 넘길 값들을 이 step의 env로 노출.
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          # EC2에서 docker-compose.backend.yml 이 위치한 디렉터리.
+          # 서버에 맞게 값 수정 (예: /home/ubuntu/app)
+          DEPLOY_DIR: ${{ secrets.EC2_DEPLOY_DIR }}

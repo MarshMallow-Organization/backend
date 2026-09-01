@@ -1,0 +1,52 @@
+# ============================================================================
+# DB 전용 compose  (EC2에서 "한 번만" 띄우고 계속 유지하는 스택)
+#
+#   docker compose -f docker-compose.db.yml up -d
+#
+# 배포(cd.yml)는 이 파일을 절대 건드리지 않는다.
+# → 백엔드를 몇 번을 재배포해도 MySQL 데이터와 커넥션은 그대로 살아있다.
+#
+# 백엔드 컨테이너는 docker-compose.backend.yml 에서 따로 관리하며,
+# 아래에서 만든 external 네트워크(cgate_network)에 참여해 DB에 접속한다.
+# ============================================================================
+
+# compose "프로젝트" 이름을 고정한다. 안 하면 디렉터리명(app)이 프로젝트명이 되어
+# backend 스택과 같은 프로젝트로 묶이고, backend를 up 할 때 여기 컨테이너들이
+# "orphan"으로 취급된다(--remove-orphans 시 삭제 위험).
+name: marshmallow-db
+
+services:
+  cgateDB:
+    image: mysql:8.4
+    container_name: cgateDB
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_DATABASE}
+      - TZ=Asia/Seoul
+    ports:
+      - '3310:3306'
+    volumes:
+      # 바인드 마운트 → 컨테이너를 지워도 데이터는 호스트에 남는다.
+      - ./mysql:/var/lib/mysql
+    networks:
+      - cgate_network
+    restart: unless-stopped
+
+  # DB를 브라우저에서 확인하는 용도(선택). 운영에서 불필요하면 지워도 된다.
+  adminer:
+    image: adminer
+    container_name: cgateAdminer
+    ports:
+      - '8082:8080'
+    networks:
+      - cgate_network
+    restart: unless-stopped
+
+networks:
+  cgate_network:
+    driver: bridge
+    # 이름을 고정한다. 이렇게 해야 backend compose에서
+    # `external: true` + `name: cgate_network` 로 정확히 이 네트워크를 붙일 수 있다.
+    name: cgate_network

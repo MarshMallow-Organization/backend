@@ -1,0 +1,40 @@
+# ============================================================================
+# 백엔드 전용 compose  (EC2에서 배포 때마다 교체되는 스택)
+#
+#   docker compose -f docker-compose.backend.yml pull    # ECR에서 새 이미지
+#   docker compose -f docker-compose.backend.yml up -d    # 바뀐 컨테이너만 재생성
+#
+# 로컬 개발용 docker-compose.yml 과 달리 여기서는 build 하지 않는다.
+# 이미지는 GitHub Actions(cd.yml)가 빌드해서 ECR에 올려둔 것을 pull 해서 쓴다.
+#
+# DB(docker-compose.db.yml)와 파일이 분리돼 있어, 이 파일로 up/down 해도
+# DB 컨테이너에는 영향이 없다.
+# ============================================================================
+
+# db 스택(marshmallow-db)과 다른 프로젝트 이름을 써서 서로 간섭하지 않게 한다.
+name: marshmallow-backend
+
+services:
+  backend:
+    # ECR 이미지 주소. 값들은 EC2의 .env 에서 채운다.
+    #   ECR_REGISTRY  = 217722171742.dkr.ecr.ap-northeast-2.amazonaws.com
+    #   ECR_REPOSITORY= marshmallow/backend  (repo 이름)
+    # 태그는 latest 고정: EC2는 항상 "가장 최근 배포본"을 받는다.
+    # (특정 커밋으로 롤백하려면 .env의 태그를 <git-sha>로 바꾸고 pull)
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BACKEND_IMAGE_TAG:-latest}
+    container_name: marshmallow-backend
+    env_file:
+      - .env
+    ports:
+      - '3000:3000'
+    networks:
+      - cgate_network
+    restart: unless-stopped
+
+networks:
+  # docker-compose.db.yml 이 먼저 만들어 둔 네트워크에 그대로 붙는다.
+  # external: true → compose가 네트워크를 새로 만들지 않고 기존 것을 찾는다.
+  #                  (없으면 에러 → DB 스택을 먼저 띄워야 한다는 뜻)
+  cgate_network:
+    external: true
+    name: cgate_network
