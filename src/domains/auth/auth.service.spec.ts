@@ -54,6 +54,7 @@ describe('AuthService', () => {
       update: jest.Mock;
       findUnique: jest.Mock;
       delete: jest.Mock;
+      deleteMany: jest.Mock;
     };
     oAuth: { findFirst: jest.Mock; create: jest.Mock };
     oAuthProvider: { upsert: jest.Mock };
@@ -72,6 +73,7 @@ describe('AuthService', () => {
         update: jest.fn(),
         findUnique: jest.fn(),
         delete: jest.fn(),
+        deleteMany: jest.fn(),
       },
       oAuth: { findFirst: jest.fn(), create: jest.fn() },
       oAuthProvider: { upsert: jest.fn() },
@@ -433,6 +435,24 @@ describe('AuthService', () => {
         service.refreshTokens(1, 99, oldRawToken),
         'INVALID_REFRESH_TOKEN',
       );
+    });
+  });
+
+  describe('logout', () => {
+    it('해당 세션을 삭제한다', async () => {
+      prisma.loginSession.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.logout(99);
+
+      expect(prisma.loginSession.deleteMany).toHaveBeenCalledWith({
+        where: { id: 99 },
+      });
+    });
+
+    it('이미 삭제된(존재하지 않는) 세션이어도 에러 없이 성공한다(idempotent)', async () => {
+      prisma.loginSession.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.logout(99)).resolves.toBeUndefined();
     });
   });
 });

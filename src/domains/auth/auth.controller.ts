@@ -30,6 +30,7 @@ import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { AccessTokenResponseDto } from './dto/response/access-token-response.dto';
 import { AuthErrorResponseDto } from './dto/response/auth-error-response.dto';
+import { LogoutResponseDto } from './dto/response/logout-response.dto';
 import { MeResponseDto } from './dto/response/me-response.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -129,6 +130,32 @@ export class AuthController {
       );
     this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
     return { accessToken };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RefreshAuthGuard)
+  @Post('logout')
+  @ApiOperation({
+    summary: '로그아웃',
+    description:
+      '현재 기기의 로그인 세션을 종료한다. 해당 세션을 폐기해 그 refreshToken은 즉시 재사용할 수 없게 되고, 쿠키도 지운다. ' +
+      'access token은 무상태(stateless)라 즉시 무효화되진 않고 남은 유효시간(최대 accessExpiresIn) 동안은 계속 통과한다.',
+  })
+  @ApiOkResponse({
+    description: '로그아웃 성공',
+    schema: dataSchema(LogoutResponseDto),
+  })
+  @ApiUnauthorizedResponse({
+    description: 'refreshToken 쿠키가 없거나 유효하지 않음',
+    type: AuthErrorResponseDto,
+  })
+  async logout(
+    @Req() req: { user: RefreshUser },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LogoutResponseDto> {
+    await this.authService.logout(req.user.sessionId);
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/' });
+    return { loggedOut: true };
   }
 
   @HttpCode(HttpStatus.OK)

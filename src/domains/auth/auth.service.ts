@@ -233,6 +233,26 @@ export class AuthService {
   }
 
   /**
+   * 현재 기기의 로그인 세션을 종료한다.
+   *
+   * LoginSession 행을 지우기만 하면 된다 — refreshTokens()의 ①③번
+   * 검사가 "세션이 없다"/"해시가 안 맞는다"로 자동으로 걸러주므로,
+   * 이 세션의 refresh token은 그 즉시 재사용이 불가능해진다.
+   *
+   * access token은 무상태(stateless) JWT라 여기서 즉시 무효화할 수는
+   * 없다 — 남은 유효시간(최대 accessExpiresIn, 기본 15분) 동안은 계속
+   * 통과한다. 그 정도 노출은 access token을 짧게 유지하는 것으로
+   * 감수하는 게 이 프로젝트의 설계다(블랙리스트 인프라 없음).
+   *
+   * deleteMany를 쓰는 이유는 idempotent하게 만들기 위해서다 — 이미
+   * 삭제된 세션(중복 로그아웃 클릭 등)에 delete()를 쓰면 P2025로
+   * 터지는데, 로그아웃은 "이미 로그아웃돼 있어도 성공"이어야 한다.
+   */
+  async logout(sessionId: number): Promise<void> {
+    await this.prisma.loginSession.deleteMany({ where: { id: sessionId } });
+  }
+
+  /**
    * 주어진 세션 id로 access/refresh 토큰 쌍을 서명하고, 그 refresh
    * token의 해시로 LoginSession을 갱신한다.
    *
