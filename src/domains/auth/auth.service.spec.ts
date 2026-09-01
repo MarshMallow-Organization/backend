@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { GoogleOAuthClient } from './google-oauth.client';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -39,9 +40,12 @@ describe('AuthService', () => {
   let prisma: {
     user: { findUnique: jest.Mock; create: jest.Mock };
     loginSession: { create: jest.Mock; update: jest.Mock };
+    oAuth: { findFirst: jest.Mock; create: jest.Mock };
+    oAuthProvider: { upsert: jest.Mock };
   };
   let jwtService: { sign: jest.Mock };
   let configService: { get: jest.Mock };
+  let googleOAuthClient: { getUserInfo: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -49,14 +53,18 @@ describe('AuthService', () => {
     prisma = {
       user: { findUnique: jest.fn(), create: jest.fn() },
       loginSession: { create: jest.fn(), update: jest.fn() },
+      oAuth: { findFirst: jest.fn(), create: jest.fn() },
+      oAuthProvider: { upsert: jest.fn() },
     };
     jwtService = { sign: jest.fn() };
     configService = { get: jest.fn((key: string) => CONFIG_VALUES[key]) };
+    googleOAuthClient = { getUserInfo: jest.fn() };
 
     service = new AuthService(
       prisma as unknown as PrismaService,
       jwtService as unknown as JwtService,
       configService as unknown as ConfigService,
+      googleOAuthClient as unknown as GoogleOAuthClient,
     );
   });
 
@@ -199,6 +207,76 @@ describe('AuthService', () => {
       expect(prisma.loginSession.update).toHaveBeenCalledWith({
         where: { id: 99 },
         data: { refreshTokenHash: 'refresh-token-hash' },
+      });
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    const googleUser = {
+      sub: 'google-sub-id',
+      email: 'google@test.com',
+      email_verified: true,
+      name: '구글유저',
+    };
+
+    beforeEach(() => {
+      googleOAuthClient.getUserInfo.mockResolvedValue(googleUser);
+      prisma.loginSession.create.mockResolvedValue({ id: 1 });
+      jwtService.sign
+        .mockReturnValueOnce('access-token')
+        .mockReturnValueOnce('refresh-token');
+      bcryptMock.hash.mockResolvedValue('refresh-token-hash' as never);
+    });
+
+    it('이미 연동된 계정이면 그 유저로 바로 로그인하고 새로 만들지 않는다', async () => {
+      const linkedUser = { id: 5, email: 'google@test.com' };
+      prisma.oAuth.findFirst.mockResolvedValue({ user: linkedUser });
+
+      const result = await service.loginWithGoogle('auth-code');
+
+      expect(prisma.oAuth.findFirst).toHaveBeenCalledWith({
+        where: {
+          providerKey: 'google-sub-id',
+          provider: { provider: 'google' },
+        },
+        include: { user: true },
+      });
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(prisma.oAuth.create).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        refreshExpiresInMs: 14 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    it('연동 기록은 없지만 같은 이메일의 로컬 계정이 있으면 그 계정에 OAuth를 추가해 연동한다', async () => {
+      const existingUser = { id: 7, email: 'google@test.com' };
+      prisma.oAuth.findFirst.mockResolvedValue(null);
+      prisma.oAuthProvider.upsert.mockResolvedValue({ id: 1 });
+      prisma.user.findUnique.mockResolvedValue(existingUser);
+
+      await service.loginWithGoogle('auth-code');
+
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(prisma.oAuth.create).toHaveBeenCalledWith({
+        data: { providerId: 1, providerKey: 'google-sub-id', userId: 7 },
+      });
+    });
+
+    it('연동 기록도 없고 같은 이메일 계정도 없으면 신규 가입 처리한다', async () => {
+      prisma.oAuth.findFirst.mockResolvedValue(null);
+      prisma.oAuthProvider.upsert.mockResolvedValue({ id: 1 });
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue({ id: 9, email: 'google@test.com' });
+
+      await service.loginWithGoogle('auth-code');
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: { email: 'google@test.com', name: '구글유저' },
+      });
+      expect(prisma.oAuth.create).toHaveBeenCalledWith({
+        data: { providerId: 1, providerKey: 'google-sub-id', userId: 9 },
       });
     });
   });

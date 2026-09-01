@@ -33,10 +33,14 @@ export default () => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '14d',
   },
+  /**
+   * 프론트가 팝업(Google Identity Services code client)으로 authorization
+   * code를 받아 우리 서버로 넘기는 방식이라, 리다이렉트로 돌아올 콜백
+   * URL이 필요 없다(토큰 교환 시 redirect_uri는 고정값 'postmessage').
+   */
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
   cors: {
     origin: process.env.FRONTEND_ORIGIN,

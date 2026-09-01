@@ -27,6 +27,7 @@ import { dataSchema } from 'src/common/swagger/dataResponse.schema';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { AccessTokenResponseDto } from './dto/response/access-token-response.dto';
 import { AuthErrorResponseDto } from './dto/response/auth-error-response.dto';
 import { MeResponseDto } from './dto/response/me-response.dto';
@@ -93,6 +94,32 @@ export class AuthController {
   ): Promise<AccessTokenResponseDto> {
     const { accessToken, refreshToken, refreshExpiresInMs } =
       await this.authService.issueTokens(req.user);
+    this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
+    return { accessToken };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('google')
+  @ApiOperation({
+    summary: '구글 로그인',
+    description:
+      '프론트가 구글 팝업(Google Identity Services code client)으로 받은 authorization code로 로그인한다. ' +
+      '이미 연동된 계정이면 로그인, 이메일이 같은 기존(로컬) 계정이 있으면 자동 연동, 둘 다 아니면 자동 회원가입 후 로그인 처리한다.',
+  })
+  @ApiOkResponse({
+    description: '로그인/연동/회원가입 성공',
+    schema: dataSchema(AccessTokenResponseDto),
+  })
+  @ApiUnauthorizedResponse({
+    description: 'GOOGLE_AUTH_FAILED: 구글 인증 실패(code 만료/무효 등)',
+    type: AuthErrorResponseDto,
+  })
+  async loginWithGoogle(
+    @Body() dto: GoogleLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AccessTokenResponseDto> {
+    const { accessToken, refreshToken, refreshExpiresInMs } =
+      await this.authService.loginWithGoogle(dto.code);
     this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
     return { accessToken };
   }

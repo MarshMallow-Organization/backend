@@ -18,4 +18,9 @@ export const AuthErrorCode = defineErrorCodes({
     message:
       '소셜 로그인으로 가입된 계정입니다. 비밀번호 로그인을 사용할 수 없습니다.',
   },
+  GOOGLE_AUTH_FAILED: {
+    code: 'GOOGLE_AUTH_FAILED',
+    status: HttpStatus.UNAUTHORIZED,
+    message: '구글 인증에 실패했습니다.',
+  },
 });

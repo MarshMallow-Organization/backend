@@ -6,8 +6,12 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
 import { AuthErrorCode } from './auth-error-code';
 import { SignupDto } from './dto/signup.dto';
+import { GoogleOAuthClient } from './google-oauth.client';
 
 const SALT_ROUNDS = 10;
+
+/** OAuthProvider.provider 값. 지금은 구글 하나뿐이라 여기 상수로만 둔다. */
+const GOOGLE_PROVIDER = 'google';
 
 /** '15m', '14d' 같은 jsonwebtoken 형식의 만료시간 문자열을 ms로 변환 */
 function parseDurationToMs(duration: string): number {
@@ -33,6 +37,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly googleOAuthClient: GoogleOAuthClient,
   ) {}
 
   async validateUser(email: string, password: string) {
@@ -79,6 +84,56 @@ export class AuthService {
         email: dto.email,
         password: hashedPassword,
         name: dto.name,
+      },
+    });
+
+    return this.issueTokens(user);
+  }
+
+  /**
+   * 구글 authorization code로 로그인/회원가입한다.
+   *
+   * 1. (provider='google', providerKey=구글 sub)로 이미 연동된 계정이면
+   *    그 유저로 바로 로그인한다.
+   * 2. 아니면 이메일로 기존 유저를 찾는다 — 로컬(이메일/비밀번호)로
+   *    이미 가입한 이메일과 같으면, 그 계정에 OAuth 행만 추가해서
+   *    자동으로 연동한다(비밀번호 로그인도 계속 가능).
+   * 3. 이메일로도 못 찾으면 신규 유저를 만든다(자동 회원가입).
+   */
+  async loginWithGoogle(code: string) {
+    const googleUser = await this.googleOAuthClient.getUserInfo(code);
+
+    const existingOAuth = await this.prisma.oAuth.findFirst({
+      where: {
+        providerKey: googleUser.sub,
+        provider: { provider: GOOGLE_PROVIDER },
+      },
+      include: { user: true },
+    });
+
+    if (existingOAuth) {
+      return this.issueTokens(existingOAuth.user);
+    }
+
+    const provider = await this.prisma.oAuthProvider.upsert({
+      where: { provider: GOOGLE_PROVIDER },
+      create: { provider: GOOGLE_PROVIDER },
+      update: {},
+    });
+
+    const user =
+      (await this.prisma.user.findUnique({
+        where: { email: googleUser.email },
+      })) ??
+      (await this.prisma.user.create({
+        data: { email: googleUser.email, name: googleUser.name },
+      }));
+
+    await this.prisma.oAuth.create({
+      data: {
+        providerId: provider.id,
+        providerKey: googleUser.sub,
+        userId: user.id,
       },
     });
 
