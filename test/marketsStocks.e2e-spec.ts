@@ -20,7 +20,7 @@ const dataOf = <T>(response: request.Response): T =>
 const errorOf = (response: request.Response): ErrorBody =>
   response.body as ErrorBody;
 
-describe('종목 상세 조회 (GET /stocks/:stockCode)', () => {
+describe('Markets 종목 조회', () => {
   const stock: MarketsStockApiDto = {
     symbol: 'AAPL',
     name: '애플',
@@ -46,6 +46,18 @@ describe('종목 상세 조회 (GET /stocks/:stockCode)', () => {
       hiddenUntil: Date;
     } | null>
   >();
+  const findMany = jest.fn<
+    () => Promise<
+      Array<{
+        stockCode: string;
+        name: string;
+        market: string;
+        securityType: string;
+        isCommonShare: boolean;
+      }>
+    >
+  >();
+  const count = jest.fn<() => Promise<number>>();
 
   let app: INestApplication<App>;
 
@@ -54,6 +66,7 @@ describe('종목 상세 조회 (GET /stocks/:stockCode)', () => {
       builder.overrideProvider(MarketsApiService).useValue({ getStock });
       builder.overrideProvider(PrismaService).useValue({
         hiddenStock: { findUnique },
+        stock: { findMany, count },
       });
     });
   });
@@ -65,7 +78,62 @@ describe('종목 상세 조회 (GET /stocks/:stockCode)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     findUnique.mockResolvedValue(null);
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
     getStock.mockResolvedValue(stock);
+  });
+
+  it('DB의 활성 종목을 검색하고 페이지 정보를 반환한다', async () => {
+    const items = [
+      {
+        stockCode: '005930',
+        name: '삼성전자',
+        market: 'KOSPI',
+        securityType: 'STOCK',
+        isCommonShare: true,
+      },
+    ];
+    findMany.mockResolvedValue(items);
+    count.mockResolvedValue(1);
+
+    const response = await request(app.getHttpServer())
+      .get('/stocks')
+      .query({ keyword: ' 삼성 ', market: 'kospi', page: '0', size: '10' })
+      .expect(200);
+
+    expect(dataOf(response)).toEqual({
+      items,
+      totalCount: 1,
+      page: 0,
+      size: 10,
+      totalPages: 1,
+      hasNext: false,
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          isActive: true,
+          market: 'KOSPI',
+          OR: [
+            { stockCode: { contains: '삼성' } },
+            { name: { contains: '삼성' } },
+          ],
+        },
+        skip: 0,
+        take: 10,
+      }),
+    );
+  });
+
+  it.each([
+    ['지원하지 않는 시장', { market: 'INVALID' }],
+    ['음수 페이지', { page: '-1' }],
+    ['최대 크기를 넘긴 페이지', { size: '101' }],
+  ])('%s 쿼리는 400을 반환한다', async (_description, query) => {
+    await request(app.getHttpServer()).get('/stocks').query(query).expect(400);
+
+    expect(findMany).not.toHaveBeenCalled();
+    expect(count).not.toHaveBeenCalled();
   });
 
   it('일반 종목의 상세 필드를 공통 data 응답으로 반환한다', async () => {

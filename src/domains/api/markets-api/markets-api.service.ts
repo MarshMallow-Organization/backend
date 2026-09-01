@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { TossClient } from '../clients/toss/toss.client';
-import type { TossStockResponse } from '../clients/toss/toss.types';
-import type { MarketsStockApiDto } from './markets-api.dto';
+import type {
+  TossListedStockResponse,
+  TossStockResponse,
+} from '../clients/toss/toss.types';
+import type {
+  MarketsListedStockApiDto,
+  MarketsStockApiDto,
+  MarketsStockMarket,
+} from './markets-api.dto';
 
 @Injectable()
 export class MarketsApiService {
@@ -41,5 +48,27 @@ export class MarketsApiService {
           }
         : null,
     };
+  }
+  async getStocksByMarket(
+    market: MarketsStockMarket,
+  ): Promise<MarketsListedStockApiDto[]> {
+    const queryParams = new URLSearchParams({
+      market,
+      status: 'ACTIVE',
+    });
+
+    const response = await this.tossClient.request<TossListedStockResponse>(
+      `/stocks/all?${queryParams.toString()}`,
+      { method: 'GET' },
+    );
+
+    return response.result.map((stock) => ({
+      stockCode: stock.symbol,
+      name: stock.name,
+      market,
+      securityType: stock.securityType,
+      isCommonShare: stock.isCommonShare,
+      isinCode: stock.isinCode,
+    }));
   }
 }

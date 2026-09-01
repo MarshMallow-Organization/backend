@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BusinessException } from 'src/common/exception/businessException';
-import type { MarketsStockApiDto } from 'src/domains/api/markets-api/markets-api.dto';
+import type {
+  MarketsListedStockApiDto,
+  MarketsStockApiDto,
+} from 'src/domains/api/markets-api/markets-api.dto';
 import { MarketsApiService } from 'src/domains/api/markets-api/markets-api.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MarketsService } from './markets.service';
@@ -28,6 +31,13 @@ describe('MarketsService', () => {
     stockCode: string;
     stockName: string;
     hiddenUntil: Date;
+  };
+  type StockListItem = {
+    stockCode: string;
+    name: string;
+    market: string;
+    securityType: string;
+    isCommonShare: boolean;
   };
 
   const userId = 7;
@@ -61,6 +71,32 @@ describe('MarketsService', () => {
   const getStock = jest.fn<
     (stockCode: string) => Promise<MarketsStockApiDto | null>
   >(() => Promise.resolve(domesticStock));
+  const listedStocks: MarketsListedStockApiDto[] = [
+    {
+      stockCode,
+      name: '삼성전자',
+      market: 'KOSPI',
+      securityType: 'STOCK',
+      isCommonShare: true,
+      isinCode: 'KR7005930003',
+    },
+  ];
+  const getStocksByMarket = jest.fn<
+    (market: string) => Promise<MarketsListedStockApiDto[]>
+  >(() => Promise.resolve(listedStocks));
+  const upsert = jest.fn<() => Promise<unknown>>(() => Promise.resolve({}));
+  const updateMany = jest.fn<() => Promise<{ count: number }>>(() =>
+    Promise.resolve({ count: 2 }),
+  );
+  const findMany = jest.fn<(args: unknown) => Promise<StockListItem[]>>(() =>
+    Promise.resolve([]),
+  );
+  const count = jest.fn<(args: unknown) => Promise<number>>(() =>
+    Promise.resolve(0),
+  );
+  const transaction = jest.fn<
+    (operations: Promise<unknown>[]) => Promise<unknown[]>
+  >((operations) => Promise.all(operations));
 
   let service: MarketsService;
 
@@ -68,13 +104,157 @@ describe('MarketsService', () => {
     jest.clearAllMocks();
     findUnique.mockResolvedValue(null);
     getStock.mockResolvedValue(domesticStock);
+    getStocksByMarket.mockResolvedValue(listedStocks);
+    upsert.mockResolvedValue({});
+    updateMany.mockResolvedValue({ count: 2 });
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+    transaction.mockImplementation((operations) => Promise.all(operations));
 
     const prisma = {
       hiddenStock: { findUnique },
+      stock: { upsert, updateMany, findMany, count },
+      $transaction: transaction,
     } as unknown as PrismaService;
-    const marketsApiService = { getStock } as unknown as MarketsApiService;
+    const marketsApiService = {
+      getStock,
+      getStocksByMarket,
+    } as unknown as MarketsApiService;
 
     service = new MarketsService(prisma, marketsApiService);
+  });
+
+  it('활성 종목을 이름 또는 종목코드로 검색하고 페이지 정보를 반환한다', async () => {
+    const items: StockListItem[] = [
+      {
+        stockCode,
+        name: '삼성전자',
+        market: 'KOSPI',
+        securityType: 'STOCK',
+        isCommonShare: true,
+      },
+    ];
+    findMany.mockResolvedValue(items);
+    count.mockResolvedValue(21);
+
+    const result = await service.getStocks({
+      keyword: '삼성',
+      market: 'KOSPI',
+      page: 0,
+      size: 20,
+    });
+
+    const where = {
+      isActive: true,
+      market: 'KOSPI',
+      OR: [{ stockCode: { contains: '삼성' } }, { name: { contains: '삼성' } }],
+    };
+    expect(findMany).toHaveBeenCalledWith({
+      where,
+      select: {
+        stockCode: true,
+        name: true,
+        market: true,
+        securityType: true,
+        isCommonShare: true,
+      },
+      orderBy: [{ name: 'asc' }, { stockCode: 'asc' }],
+      skip: 0,
+      take: 20,
+    });
+    expect(count).toHaveBeenCalledWith({ where });
+    expect(result).toEqual({
+      items,
+      totalCount: 21,
+      page: 0,
+      size: 20,
+      totalPages: 2,
+      hasNext: true,
+    });
+  });
+
+  it('검색 조건이 없으면 활성 종목 전체를 두 번째 페이지부터 조회한다', async () => {
+    await service.getStocks({ page: 1, size: 10 });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true },
+        skip: 10,
+        take: 10,
+      }),
+    );
+    expect(count).toHaveBeenCalledWith({ where: { isActive: true } });
+  });
+
+  it('시장별 종목을 upsert한 뒤 이전 동기화 종목을 비활성화한다', async () => {
+    const result = await service.syncStocksByMarket('KOSPI');
+
+    expect(getStocksByMarket).toHaveBeenCalledWith('KOSPI');
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledWith({
+      where: { stockCode },
+      create: expect.objectContaining({
+        stockCode,
+        name: '삼성전자',
+        market: 'KOSPI',
+        isActive: true,
+        lastSyncedAt: expect.any(Date),
+      }),
+      update: expect.objectContaining({
+        name: '삼성전자',
+        market: 'KOSPI',
+        isActive: true,
+        lastSyncedAt: expect.any(Date),
+      }),
+    });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        market: 'KOSPI',
+        lastSyncedAt: { lt: expect.any(Date) },
+      },
+      data: { isActive: false },
+    });
+    expect(result).toEqual({
+      market: 'KOSPI',
+      syncedCount: 1,
+      deactivatedCount: 2,
+    });
+  });
+
+  it('외부 종목 목록이 비어 있으면 DB를 변경하지 않는다', async () => {
+    getStocksByMarket.mockResolvedValue([]);
+
+    await expect(service.syncStocksByMarket('NASDAQ')).resolves.toEqual({
+      market: 'NASDAQ',
+      syncedCount: 0,
+      deactivatedCount: 0,
+    });
+    expect(upsert).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('종목을 최대 100개씩 나누어 배치 처리한다', async () => {
+    getStocksByMarket.mockResolvedValue(
+      Array.from({ length: 201 }, (_, index) => ({
+        stockCode: String(index).padStart(6, '0'),
+        name: `종목 ${index}`,
+        market: 'KOSPI' as const,
+        securityType: 'STOCK',
+        isCommonShare: true,
+        isinCode: `KR${String(index).padStart(10, '0')}`,
+      })),
+    );
+
+    const result = await service.syncStocksByMarket('KOSPI');
+
+    expect(upsert).toHaveBeenCalledTimes(201);
+    expect(transaction).toHaveBeenCalledTimes(3);
+    expect(transaction.mock.calls[0]?.[0]).toHaveLength(100);
+    expect(transaction.mock.calls[1]?.[0]).toHaveLength(100);
+    expect(transaction.mock.calls[2]?.[0]).toHaveLength(1);
+    expect(result.syncedCount).toBe(201);
   });
 
   it('활성 숨김 종목이면 DB의 숨김 정보를 반환하고 외부 API를 호출하지 않는다', async () => {

@@ -30,6 +30,24 @@ export interface TossStockResponse {
   result: TossStock[];
 }
 
+/** 토스 전체 종목 조회 API에서 지원하는 시장 */
+export type TossStockMarket =
+  'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ' | 'AMEX' | 'KR_ETC' | 'US_ETC';
+
+/** GET /api/v1/stocks/all 응답의 개별 종목 */
+export interface TossListedStock {
+  symbol: string;
+  name: string;
+  securityType: string;
+  isCommonShare: boolean;
+  isinCode: string;
+}
+
+/** GET /api/v1/stocks/all 원본 응답 */
+export interface TossListedStockResponse {
+  result: TossListedStock[];
+}
+
 /** 토스 인증 토큰 응답 인터페이스 */
 export interface TossTokenResponse {
   access_token: string;

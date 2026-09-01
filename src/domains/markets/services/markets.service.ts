@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { BusinessException } from 'src/common/exception/businessException';
+import type { MarketsStockMarket } from 'src/domains/api/markets-api/markets-api.dto';
 import { MarketsApiService } from 'src/domains/api/markets-api/markets-api.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { GetStocksQueryDto } from '../dto/request/get-stocks-query.dto';
 import { GetStockResponseDto } from '../dto/response/get-stock-response.dto';
+import { GetStocksResponseDto } from '../dto/response/get-stocks-response.dto';
 import { MarketsErrorCode } from '../error/markets-error-code';
+
+const STOCK_SYNC_BATCH_SIZE = 100;
 
 @Injectable()
 export class MarketsService {
@@ -11,6 +16,98 @@ export class MarketsService {
     private readonly prisma: PrismaService,
     private readonly marketsApiService: MarketsApiService,
   ) {}
+
+  async getStocks(query: GetStocksQueryDto): Promise<GetStocksResponseDto> {
+    const { keyword, market, page, size } = query;
+    const where = {
+      isActive: true,
+      ...(market !== undefined && { market }),
+      ...(keyword !== undefined &&
+        keyword.length > 0 && {
+          OR: [
+            { stockCode: { contains: keyword.toUpperCase() } },
+            { name: { contains: keyword } },
+          ],
+        }),
+    };
+
+    const [items, totalCount] = await Promise.all([
+      this.prisma.stock.findMany({
+        where,
+        select: {
+          stockCode: true,
+          name: true,
+          market: true,
+          securityType: true,
+          isCommonShare: true,
+        },
+        orderBy: [{ name: 'asc' }, { stockCode: 'asc' }],
+        skip: page * size,
+        take: size,
+      }),
+      this.prisma.stock.count({ where }),
+    ]);
+
+    return GetStocksResponseDto.of(items, totalCount, page, size);
+  }
+
+  async syncStocksByMarket(market: MarketsStockMarket): Promise<{
+    market: MarketsStockMarket;
+    syncedCount: number;
+    deactivatedCount: number;
+  }> {
+    const stocks = await this.marketsApiService.getStocksByMarket(market);
+
+    if (stocks.length === 0) {
+      return { market, syncedCount: 0, deactivatedCount: 0 };
+    }
+
+    const syncedAt = new Date();
+
+    for (let index = 0; index < stocks.length; index += STOCK_SYNC_BATCH_SIZE) {
+      const batch = stocks.slice(index, index + STOCK_SYNC_BATCH_SIZE);
+      const upserts = batch.map((stock) =>
+        this.prisma.stock.upsert({
+          where: { stockCode: stock.stockCode },
+          create: {
+            stockCode: stock.stockCode,
+            name: stock.name,
+            market: stock.market,
+            securityType: stock.securityType,
+            isCommonShare: stock.isCommonShare,
+            isinCode: stock.isinCode,
+            isActive: true,
+            lastSyncedAt: syncedAt,
+          },
+          update: {
+            name: stock.name,
+            market: stock.market,
+            securityType: stock.securityType,
+            isCommonShare: stock.isCommonShare,
+            isinCode: stock.isinCode,
+            isActive: true,
+            lastSyncedAt: syncedAt,
+          },
+        }),
+      );
+
+      await this.prisma.$transaction(upserts);
+    }
+
+    const { count: deactivatedCount } = await this.prisma.stock.updateMany({
+      where: {
+        market,
+        lastSyncedAt: { lt: syncedAt },
+      },
+      data: { isActive: false },
+    });
+
+    return {
+      market,
+      syncedCount: stocks.length,
+      deactivatedCount,
+    };
+  }
 
   async getStock(
     userId: number,
