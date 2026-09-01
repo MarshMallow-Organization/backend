@@ -210,7 +210,12 @@ export class TossClient {
         });
       }
 
-      return (await response.json()) as T;
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      const text = await response.text();
+      return (text ? JSON.parse(text) : undefined) as T;
     } catch (error) {
       if (error instanceof Error && error.name === 'TimeoutError') {
         this.logger.error(`[TossClient] 요청 타임아웃 (url: ${url})`);
