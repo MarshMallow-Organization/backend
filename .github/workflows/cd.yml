@@ -2,7 +2,7 @@
 # CD (Continuous Deployment) 워크플로우
 #
 # 큰 그림
-#   main push
+#   dev push   (지금은 test 서버 검증용. 안정화되면 main 으로 바꾼다)
 #     └─▶ [ci]  lint + build            (코드 검증)
 #           └─▶ [deploy]                (needs: ci → ci 성공 시에만)
 #                 1) GitHub Actions 러너에서 docker build
@@ -19,10 +19,11 @@
 name: CD Deploy
 
 on:
-  # main 브랜치에 커밋이 들어올 때만 배포한다.
-  # (feature 브랜치 push는 ci.yaml만 돌고 여기는 실행되지 않는다.)
+  # 지금은 test 서버 검증용이라 dev 브랜치에서만 배포가 돈다.
+  # 파이프라인이 안정되면 [dev] → [main] 으로 바꾸면 된다.
+  # (그 외 feature 브랜치 push는 ci.yaml만 돌고 여기는 실행되지 않는다.)
   push:
-    branches: [main]
+    branches: [dev]
 
   # GitHub Actions 화면에서 수동 배포도 가능하게 열어둔다.
   workflow_dispatch:
