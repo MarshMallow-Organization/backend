@@ -23,4 +23,9 @@ export const AuthErrorCode = defineErrorCodes({
     status: HttpStatus.UNAUTHORIZED,
     message: '구글 인증에 실패했습니다.',
   },
+  INVALID_REFRESH_TOKEN: {
+    code: 'INVALID_REFRESH_TOKEN',
+    status: HttpStatus.UNAUTHORIZED,
+    message: '세션이 만료되었습니다. 다시 로그인해주세요.',
+  },
 });

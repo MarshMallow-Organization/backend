@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { createHash, timingSafeEqual } from 'crypto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BusinessException } from 'src/common/exception/businessException';
 import { AuthErrorCode } from './auth-error-code';
@@ -12,6 +13,29 @@ const SALT_ROUNDS = 10;
 
 /** OAuthProvider.provider 값. 지금은 구글 하나뿐이라 여기 상수로만 둔다. */
 const GOOGLE_PROVIDER = 'google';
+
+/**
+ * refresh token(JWT) 해시 전용. bcrypt는 쓰지 않는다 — bcrypt는 앞
+ * 72바이트만 보는데, JWT는 sub/sessionId가 같은 채로 회전할 때마다
+ * 달라지는 부분(iat/exp)이 보통 72바이트를 넘어간 지점에 있어서
+ * 서로 다른 토큰인데도 bcrypt.compare가 true를 반환하는 사고가 났다
+ * (실서버 테스트로 재현·확인함). bcrypt는 사람이 만드는 짧고 추측
+ * 가능한 비밀번호에 맞는 느린 해시고, refresh token처럼 이미 충분히
+ * 무작위인 긴 문자열에는 길이 제한 없는 SHA-256이면 충분하다.
+ */
+function hashRefreshToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+/** 타이밍 공격을 피하려고 문자열 비교(===) 대신 timingSafeEqual을 쓴다. */
+function refreshTokenMatches(rawToken: string, storedHash: string): boolean {
+  const candidate = Buffer.from(hashRefreshToken(rawToken), 'hex');
+  const stored = Buffer.from(storedHash, 'hex');
+
+  return (
+    candidate.length === stored.length && timingSafeEqual(candidate, stored)
+  );
+}
 
 /** '15m', '14d' 같은 jsonwebtoken 형식의 만료시간 문자열을 ms로 변환 */
 function parseDurationToMs(duration: string): number {
@@ -141,14 +165,8 @@ export class AuthService {
   }
 
   async issueTokens(user: { id: number; email: string }) {
-    const accessSecret = this.configService.get<string>('jwt.accessSecret')!;
-    const refreshSecret = this.configService.get<string>('jwt.refreshSecret')!;
-    const accessExpiresIn =
-      this.configService.get<string>('jwt.accessExpiresIn') ?? '15m';
     const refreshExpiresIn =
       this.configService.get<string>('jwt.refreshExpiresIn') ?? '14d';
-
-    const accessExpiresInSec = parseDurationToMs(accessExpiresIn) / 1000;
     const refreshExpiresInSec = parseDurationToMs(refreshExpiresIn) / 1000;
 
     // sessionId를 payload에 넣어야 해서, 먼저 임시 값으로 세션 행을 만들고
@@ -161,21 +179,99 @@ export class AuthService {
       },
     });
 
+    return this.signTokenPair(user, session.id);
+  }
+
+  /**
+   * refresh token으로 새 access/refresh 토큰을 발급한다(토큰 회전).
+   *
+   * JWT 서명·만료는 RefreshJwtStrategy가 이미 검증했지만, 그것만으로는
+   * "로그아웃했거나 이미 한 번 회전으로 무효화된 refresh token"을 걸러낼
+   * 수 없다 — 서명 자체는 만료 전까지 계속 유효하기 때문이다. 그래서
+   * LoginSession에 저장된 해시와 원본 토큰을 직접 대조한다.
+   *
+   * 해시가 안 맞으면 — 이미 회전된(탈취돼 재사용됐을 가능성이 있는)
+   * refresh token이라는 뜻이라 세션 자체를 지워서 그 기기는 재로그인을
+   * 하게 만든다. 토큰 탈취 탐지의 표준적인 방식이다.
+   */
+  async refreshTokens(
+    userId: number,
+    sessionId: number,
+    rawRefreshToken: string,
+  ) {
+    const session = await this.prisma.loginSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session || session.userId !== userId) {
+      throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    if (session.expiresAt < new Date()) {
+      await this.prisma.loginSession.delete({ where: { id: sessionId } });
+      throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    const isMatch = refreshTokenMatches(
+      rawRefreshToken,
+      session.refreshTokenHash,
+    );
+
+    if (!isMatch) {
+      await this.prisma.loginSession.delete({ where: { id: sessionId } });
+      throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      await this.prisma.loginSession.delete({ where: { id: sessionId } });
+      throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    return this.signTokenPair(user, session.id);
+  }
+
+  /**
+   * 주어진 세션 id로 access/refresh 토큰 쌍을 서명하고, 그 refresh
+   * token의 해시로 LoginSession을 갱신한다.
+   *
+   * issueTokens(새 세션 생성)와 refreshTokens(기존 세션 회전) 둘 다
+   * "세션 하나를 정하고 그 세션 기준으로 토큰을 서명"하는 부분은
+   * 동일해서 여기로 뺐다.
+   */
+  private async signTokenPair(
+    user: { id: number; email: string },
+    sessionId: number,
+  ) {
+    const accessSecret = this.configService.get<string>('jwt.accessSecret')!;
+    const refreshSecret = this.configService.get<string>('jwt.refreshSecret')!;
+    const accessExpiresIn =
+      this.configService.get<string>('jwt.accessExpiresIn') ?? '15m';
+    const refreshExpiresIn =
+      this.configService.get<string>('jwt.refreshExpiresIn') ?? '14d';
+
+    const accessExpiresInSec = parseDurationToMs(accessExpiresIn) / 1000;
+    const refreshExpiresInSec = parseDurationToMs(refreshExpiresIn) / 1000;
+
     const accessToken = this.jwtService.sign(
       { sub: user.id, email: user.email },
       { secret: accessSecret, expiresIn: accessExpiresInSec },
     );
 
     const refreshToken = this.jwtService.sign(
-      { sub: user.id, sessionId: session.id },
+      { sub: user.id, sessionId },
       { secret: refreshSecret, expiresIn: refreshExpiresInSec },
     );
 
-    const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
+    const refreshTokenHash = hashRefreshToken(refreshToken);
 
     await this.prisma.loginSession.update({
-      where: { id: session.id },
-      data: { refreshTokenHash },
+      where: { id: sessionId },
+      data: {
+        refreshTokenHash,
+        expiresAt: new Date(Date.now() + refreshExpiresInSec * 1000),
+      },
     });
 
     return {

@@ -5,10 +5,20 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GoogleOAuthClient } from './google-oauth.client';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 
 jest.mock('bcrypt');
 
 const bcryptMock = bcrypt as jest.Mocked<typeof bcrypt>;
+
+/**
+ * AuthService가 refresh token을 해싱하는 방식(SHA-256)과 정확히 같은
+ * 함수. bcrypt는 앞 72바이트만 봐서 회전마다 바뀌는 JWT의 iat/exp가
+ * 그 뒤에 오면 서로 다른 토큰을 같다고 오판했던 실제 버그가 있었다
+ * (실서버 테스트로 재현) — 그래서 refresh token 해시만 SHA-256을 쓴다.
+ */
+const sha256 = (value: string): string =>
+  createHash('sha256').update(value).digest('hex');
 
 const expectBusinessException = async (
   promise: Promise<unknown>,
@@ -39,7 +49,12 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: {
     user: { findUnique: jest.Mock; create: jest.Mock };
-    loginSession: { create: jest.Mock; update: jest.Mock };
+    loginSession: {
+      create: jest.Mock;
+      update: jest.Mock;
+      findUnique: jest.Mock;
+      delete: jest.Mock;
+    };
     oAuth: { findFirst: jest.Mock; create: jest.Mock };
     oAuthProvider: { upsert: jest.Mock };
   };
@@ -52,7 +67,12 @@ describe('AuthService', () => {
 
     prisma = {
       user: { findUnique: jest.fn(), create: jest.fn() },
-      loginSession: { create: jest.fn(), update: jest.fn() },
+      loginSession: {
+        create: jest.fn(),
+        update: jest.fn(),
+        findUnique: jest.fn(),
+        delete: jest.fn(),
+      },
       oAuth: { findFirst: jest.fn(), create: jest.fn() },
       oAuthProvider: { upsert: jest.fn() },
     };
@@ -166,7 +186,6 @@ describe('AuthService', () => {
       jwtService.sign
         .mockReturnValueOnce('access-token')
         .mockReturnValueOnce('refresh-token');
-      bcryptMock.hash.mockResolvedValue('refresh-token-hash' as never);
 
       const result = await service.issueTokens(user);
 
@@ -187,13 +206,12 @@ describe('AuthService', () => {
       });
     });
 
-    it('LoginSession을 먼저 빈 해시로 생성한 뒤, 발급된 refresh token의 해시로 갱신한다', async () => {
+    it('LoginSession을 먼저 빈 해시로 생성한 뒤, 발급된 refresh token의 SHA-256 해시로 갱신한다', async () => {
       const user = { id: 1, email: 'a@test.com' };
       prisma.loginSession.create.mockResolvedValue({ id: 99 });
       jwtService.sign
         .mockReturnValueOnce('access-token')
         .mockReturnValueOnce('refresh-token');
-      bcryptMock.hash.mockResolvedValue('refresh-token-hash' as never);
 
       await service.issueTokens(user);
 
@@ -203,10 +221,12 @@ describe('AuthService', () => {
           refreshTokenHash: '',
         }) as { userId: number; refreshTokenHash: string },
       });
-      expect(bcryptMock.hash).toHaveBeenCalledWith('refresh-token', 10);
+      // bcrypt가 아니라 SHA-256으로 해싱한다 — 이유는 파일 상단 sha256 주석 참고.
       expect(prisma.loginSession.update).toHaveBeenCalledWith({
         where: { id: 99 },
-        data: { refreshTokenHash: 'refresh-token-hash' },
+        data: expect.objectContaining({
+          refreshTokenHash: sha256('refresh-token'),
+        }) as { refreshTokenHash: string },
       });
     });
   });
@@ -225,7 +245,6 @@ describe('AuthService', () => {
       jwtService.sign
         .mockReturnValueOnce('access-token')
         .mockReturnValueOnce('refresh-token');
-      bcryptMock.hash.mockResolvedValue('refresh-token-hash' as never);
     });
 
     it('이미 연동된 계정이면 그 유저로 바로 로그인하고 새로 만들지 않는다', async () => {
@@ -278,6 +297,142 @@ describe('AuthService', () => {
       expect(prisma.oAuth.create).toHaveBeenCalledWith({
         data: { providerId: 1, providerKey: 'google-sub-id', userId: 9 },
       });
+    });
+  });
+
+  describe('refreshTokens', () => {
+    const FUTURE = new Date(Date.now() + 60 * 60 * 1000);
+    const PAST = new Date(Date.now() - 60 * 1000);
+
+    beforeEach(() => {
+      jwtService.sign
+        .mockReturnValueOnce('new-access-token')
+        .mockReturnValueOnce('new-refresh-token');
+    });
+
+    it('세션이 없으면 INVALID_REFRESH_TOKEN을 던진다', async () => {
+      prisma.loginSession.findUnique.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.refreshTokens(1, 99, 'raw-refresh-token'),
+        'INVALID_REFRESH_TOKEN',
+      );
+    });
+
+    it('세션의 userId가 토큰의 userId와 다르면 INVALID_REFRESH_TOKEN을 던진다', async () => {
+      prisma.loginSession.findUnique.mockResolvedValue({
+        id: 99,
+        userId: 2, // 요청은 userId 1로 왔는데 세션 주인은 2
+        expiresAt: FUTURE,
+        refreshTokenHash: 'hash',
+      });
+
+      await expectBusinessException(
+        service.refreshTokens(1, 99, 'raw-refresh-token'),
+        'INVALID_REFRESH_TOKEN',
+      );
+    });
+
+    it('세션이 만료됐으면 세션을 지우고 INVALID_REFRESH_TOKEN을 던진다', async () => {
+      prisma.loginSession.findUnique.mockResolvedValue({
+        id: 99,
+        userId: 1,
+        expiresAt: PAST,
+        refreshTokenHash: 'hash',
+      });
+
+      await expectBusinessException(
+        service.refreshTokens(1, 99, 'raw-refresh-token'),
+        'INVALID_REFRESH_TOKEN',
+      );
+      expect(prisma.loginSession.delete).toHaveBeenCalledWith({
+        where: { id: 99 },
+      });
+    });
+
+    it('원본 refresh token이 저장된 해시와 다르면(이미 회전됨) 세션을 지우고 INVALID_REFRESH_TOKEN을 던진다', async () => {
+      prisma.loginSession.findUnique.mockResolvedValue({
+        id: 99,
+        userId: 1,
+        expiresAt: FUTURE,
+        // 다른(이미 회전으로 무효화된) 토큰의 해시 — 지금 보낸 토큰과 안 맞아야 한다.
+        refreshTokenHash: sha256('previously-rotated-out-token'),
+      });
+
+      await expectBusinessException(
+        service.refreshTokens(1, 99, 'stolen-or-rotated-token'),
+        'INVALID_REFRESH_TOKEN',
+      );
+      expect(prisma.loginSession.delete).toHaveBeenCalledWith({
+        where: { id: 99 },
+      });
+    });
+
+    it('유저가 이미 삭제됐으면 세션을 지우고 INVALID_REFRESH_TOKEN을 던진다', async () => {
+      prisma.loginSession.findUnique.mockResolvedValue({
+        id: 99,
+        userId: 1,
+        expiresAt: FUTURE,
+        refreshTokenHash: sha256('raw-refresh-token'),
+      });
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expectBusinessException(
+        service.refreshTokens(1, 99, 'raw-refresh-token'),
+        'INVALID_REFRESH_TOKEN',
+      );
+      expect(prisma.loginSession.delete).toHaveBeenCalledWith({
+        where: { id: 99 },
+      });
+    });
+
+    it('유효한 refresh token이면 새 토큰 쌍을 발급하고 같은 세션을 회전(갱신)한다', async () => {
+      prisma.loginSession.findUnique.mockResolvedValue({
+        id: 99,
+        userId: 1,
+        expiresAt: FUTURE,
+        refreshTokenHash: sha256('raw-refresh-token'),
+      });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 1,
+        email: 'a@test.com',
+      });
+
+      const result = await service.refreshTokens(1, 99, 'raw-refresh-token');
+
+      // 새 세션을 만들지 않고 기존 세션(99)을 그대로 회전한다.
+      expect(prisma.loginSession.create).not.toHaveBeenCalled();
+      expect(prisma.loginSession.update).toHaveBeenCalledWith({
+        where: { id: 99 },
+        data: expect.objectContaining({
+          refreshTokenHash: sha256('new-refresh-token'),
+        }) as { refreshTokenHash: string },
+      });
+      expect(result).toEqual({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        refreshExpiresInMs: 14 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    it('실제 회전 시나리오: 회전 전 토큰으로 재요청하면 거부된다(회귀 방지)', async () => {
+      // 실서버 테스트로 재현했던 버그의 회귀 테스트: bcrypt 72바이트 truncation
+      // 때문에 sub/sessionId가 같은 서로 다른 토큰을 같다고 오판했었다.
+      const oldRawToken = 'old.jwt.with-same-sub-sessionId-prefix';
+      const newRawToken = 'old.jwt.but-different-suffix-only-after-72-bytes';
+
+      // 세션은 회전 후(새 토큰의 해시)로 갱신된 상태를 가정한다.
+      prisma.loginSession.findUnique.mockResolvedValue({
+        id: 99,
+        userId: 1,
+        expiresAt: FUTURE,
+        refreshTokenHash: sha256(newRawToken),
+      });
+
+      await expectBusinessException(
+        service.refreshTokens(1, 99, oldRawToken),
+        'INVALID_REFRESH_TOKEN',
+      );
     });
   });
 });

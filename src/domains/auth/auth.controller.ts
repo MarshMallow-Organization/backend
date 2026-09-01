@@ -33,8 +33,9 @@ import { AuthErrorResponseDto } from './dto/response/auth-error-response.dto';
 import { MeResponseDto } from './dto/response/me-response.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-
-const REFRESH_COOKIE_NAME = 'refreshToken';
+import { RefreshAuthGuard } from './guards/refresh-auth.guard';
+import { REFRESH_COOKIE_NAME } from './auth.constants';
+import type { RefreshUser } from './strategies/refresh-jwt.strategy';
 
 @ApiTags('Auths')
 @ApiExtraModels(AccessTokenResponseDto, AuthErrorResponseDto, MeResponseDto)
@@ -94,6 +95,38 @@ export class AuthController {
   ): Promise<AccessTokenResponseDto> {
     const { accessToken, refreshToken, refreshExpiresInMs } =
       await this.authService.issueTokens(req.user);
+    this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
+    return { accessToken };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RefreshAuthGuard)
+  @Post('refresh')
+  @ApiOperation({
+    summary: '토큰 재발급',
+    description:
+      'refreshToken 쿠키로 새 access/refresh 토큰을 발급받는다(토큰 회전). ' +
+      'access token 만료 전에 프론트가 주기적으로(또는 401 응답 시) 호출해서 재로그인 없이 세션을 이어간다.',
+  })
+  @ApiOkResponse({
+    description: '재발급 성공',
+    schema: dataSchema(AccessTokenResponseDto),
+  })
+  @ApiUnauthorizedResponse({
+    description:
+      'refreshToken 쿠키가 없거나 유효하지 않음, 또는 INVALID_REFRESH_TOKEN(세션 만료/이미 사용된 토큰)',
+    type: AuthErrorResponseDto,
+  })
+  async refresh(
+    @Req() req: { user: RefreshUser },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AccessTokenResponseDto> {
+    const { accessToken, refreshToken, refreshExpiresInMs } =
+      await this.authService.refreshTokens(
+        req.user.id,
+        req.user.sessionId,
+        req.user.rawRefreshToken,
+      );
     this.setRefreshCookie(res, refreshToken, refreshExpiresInMs);
     return { accessToken };
   }
